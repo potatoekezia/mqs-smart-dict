@@ -380,6 +380,7 @@
             display: flex;
             gap: 12px;
             overflow-x: auto;
+            overflow-y: hidden;
             padding: 10px 8px;
             min-height: 90px;
             width: 100%;
@@ -388,11 +389,19 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             scroll-behavior: smooth;
             -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+            cursor: pointer;
+            transition: border-color 0.2s ease;
         }
 
-        #existing-monster-picker::-webkit-scrollbar { height: 4px; }
+        #existing-monster-picker:hover {
+            border-color: rgba(249, 115, 22, 0.4);
+        }
+
+        #existing-monster-picker::-webkit-scrollbar { height: 6px; }
         #existing-monster-picker::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
-        #existing-monster-picker::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.3); border-radius: 10px; }
+        #existing-monster-picker::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.35); border-radius: 10px; }
+        #existing-monster-picker:hover::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.85); }
 
         .monster-picker-item {
             flex: 0 0 auto;
@@ -885,9 +894,24 @@
                     <div id="dict-circles-layer"></div>
                 </div>
                 <div id="dict-position-picker" class="hidden mt-2 p-2 bg-black/30 rounded border border-white/10 text-left">
+                    <!-- Smart Non-AI Match Suggestion -->
+                    <div id="dict-smart-suggestion" class="hidden mb-3 p-3 rounded-xl border border-orange-500/40 bg-gradient-to-r from-orange-500/15 via-purple-500/10 to-black/40 text-left">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px">
+                            <div style="font-size:11px; font-weight:bold; color:var(--accent); text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:6px">
+                                <span>💡 Smart Match Suggestion</span>
+                                <span style="font-size:9px; color:rgba(255,255,255,0.4); text-transform:lowercase; font-weight:normal">(local pHash match)</span>
+                            </div>
+                            <button type="button" onclick="dismissDictSuggestion()" style="background:transparent; border:none; color:rgba(255,255,255,0.5); font-size:14px; cursor:pointer; line-height:1; padding:0 4px">✕</button>
+                        </div>
+                        <div id="dict-suggestion-content"></div>
+                    </div>
+
                     <div class="mb-4 p-2 bg-white/5 rounded border border-white/10">
-                        <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider block mb-1">Pick Existing Monster (Optional):</label>
-                        <div id="existing-monster-picker" class="scrollbar-hide"></div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px">
+                            <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider block">Pick Existing Monster (Optional):</label>
+                            <span style="font-size:9px; color:rgba(255,255,255,0.35); font-style:italic">Hover & scroll with mouse wheel</span>
+                        </div>
+                        <div id="existing-monster-picker"></div>
                     </div>
                     <div class="text-[10px] text-white/50 mb-2 uppercase font-bold tracking-wider">Step 1: Click a circle to pick Target (Optional if picked above)</div>
                     <div id="dict-target-preview-container" class="hidden flex flex-col gap-2 mb-4 p-2 bg-orange-500/10 border border-orange-500/20 rounded">
@@ -1283,6 +1307,16 @@
             window.addEventListener('touchmove', handleDragging, { passive: false });
             window.addEventListener('touchend', stopDragging);
             window.addEventListener('resize', renderPreviewCircles);
+
+            const monsterPicker = document.getElementById('existing-monster-picker');
+            if (monsterPicker) {
+                monsterPicker.addEventListener('wheel', (e) => {
+                    if (Math.abs(e.deltaY) > 0 || Math.abs(e.deltaX) > 0) {
+                        e.preventDefault();
+                        monsterPicker.scrollLeft += (e.deltaY || e.deltaX);
+                    }
+                }, { passive: false });
+            }
         }
 
         function refreshSolver() {
@@ -2317,6 +2351,43 @@
             return (1 - distance / h1.length) * 100;
         }
 
+        async function computeMultiOrientationPHashes(dataUrl) {
+            const img = await loadImage(dataUrl);
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            const orientations = [
+                { rot: 0, flip: false },
+                { rot: 90, flip: false },
+                { rot: 180, flip: false },
+                { rot: 270, flip: false },
+                { rot: 0, flip: true }
+            ];
+            const hashes = [];
+            for (let opt of orientations) {
+                ctx.clearRect(0, 0, 32, 32);
+                ctx.save();
+                ctx.translate(16, 16);
+                ctx.rotate((opt.rot * Math.PI) / 180);
+                if (opt.flip) ctx.scale(-1, 1);
+                ctx.drawImage(img, -16, -16, 32, 32);
+                ctx.restore();
+                const imageData = ctx.getImageData(0, 0, 32, 32);
+                const gray = new Float32Array(1024);
+                for (let i = 0; i < 1024; i++) {
+                    gray[i] = 0.299 * imageData.data[i*4] + 0.587 * imageData.data[i*4+1] + 0.114 * imageData.data[i*4+2];
+                }
+                const dct = applyDCT(gray, 32);
+                const block = [];
+                for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { if (x === 0 && y === 0) continue; block.push(dct[y * 32 + x]); }
+                const mean = block.reduce((a, b) => a + b, 0) / block.length;
+                let hash = "";
+                for (let val of block) hash += val > mean ? "1" : "0";
+                hashes.push(hash);
+            }
+            return hashes;
+        }
+
         async function callGeminiForPuzzle(screenshot, targets, answers, pHashResults, lockedResults = []) {
             const debugContent = document.getElementById('debug-content');
             let availableKeys = [...geminiKeys];
@@ -2493,6 +2564,7 @@ Example: 132`;
 
         function cancelDictEntry() {
             dictScreenshot = null; dictTargetCrop = null; dictAnswerCrops = [];
+            dismissDictSuggestion();
             document.getElementById('dict-preview-container').classList.add('hidden');
             document.getElementById('dict-position-picker').classList.add('hidden');
             document.getElementById('dict-save-btn').disabled = true;
@@ -2512,6 +2584,7 @@ Example: 132`;
             const reader = new FileReader();
             reader.onload = async (e) => {
                 dictScreenshot = e.target.result;
+                dismissDictSuggestion();
                 const previewImg = document.getElementById('dict-screenshot-preview');
                 previewImg.onload = () => renderDictPreview();
                 previewImg.src = dictScreenshot;
@@ -2564,12 +2637,14 @@ Example: 132`;
                 dictTargetCrop = { data: crop.data, position: { type: 'target', index }, isExisting: false };
                 document.getElementById('dict-target-preview').src = dictTargetCrop.data;
                 document.getElementById('dict-target-preview-container').classList.remove('hidden');
+                dismissDictSuggestion();
             } else {
                 const alreadyAdded = dictAnswerCrops.some(a => a.position.type === 'answer' && a.position.index === index);
                 if (!alreadyAdded) {
                     dictAnswerCrops.push({ data: crop.data, position: { type: 'answer', index } });
                     renderDictAnswerPreviews();
                 }
+                findSmartMonsterSuggestion(crop.data);
             }
             if (dictTargetCrop) document.getElementById('dict-save-btn').disabled = false;
         }
@@ -2587,6 +2662,119 @@ Example: 132`;
         }
 
         function removeDictAnswer(idx) { dictAnswerCrops.splice(idx, 1); renderDictAnswerPreviews(); }
+
+        async function findSmartMonsterSuggestion(answerDataUrl) {
+            const suggestionBanner = document.getElementById('dict-smart-suggestion');
+            const suggestionContent = document.getElementById('dict-suggestion-content');
+            if (!suggestionBanner || !suggestionContent) return;
+            if (!dictionary || dictionary.length === 0) {
+                suggestionBanner.classList.add('hidden');
+                return;
+            }
+
+            try {
+                const answerHashes = await computeMultiOrientationPHashes(answerDataUrl);
+                const candidates = [];
+
+                for (let entry of dictionary) {
+                    let bestSim = 0;
+                    if (entry.targetHash) {
+                        for (let ah of answerHashes) {
+                            const sim = compareHashes(ah, entry.targetHash);
+                            if (sim > bestSim) bestSim = sim;
+                        }
+                    }
+                    if (entry.answers && entry.answers.length > 0) {
+                        for (let ans of entry.answers) {
+                            const ansHash = typeof ans === 'string' ? '' : (ans.hash || '');
+                            if (ansHash) {
+                                for (let ah of answerHashes) {
+                                    const sim = compareHashes(ah, ansHash);
+                                    if (sim > bestSim) bestSim = sim;
+                                }
+                            }
+                        }
+                    }
+
+                    if (bestSim > 0) {
+                        candidates.push({ entry, similarity: bestSim });
+                    }
+                }
+
+                candidates.sort((a, b) => b.similarity - a.similarity);
+
+                if (candidates.length === 0 || candidates[0].similarity < 48) {
+                    suggestionBanner.classList.add('hidden');
+                    return;
+                }
+
+                const top = candidates[0];
+                const runnersUp = candidates.slice(1, 4).filter(c => c.similarity >= 45 && c.entry.id !== top.entry.id);
+
+                let badgeColor = 'background:rgba(249,115,22,0.2); color:#f97316; border-color:rgba(249,115,22,0.4);';
+                if (top.similarity >= 75) badgeColor = 'background:rgba(34,197,94,0.2); color:#4ade80; border-color:rgba(34,197,94,0.4);';
+                else if (top.similarity >= 60) badgeColor = 'background:rgba(234,179,8,0.2); color:#facc15; border-color:rgba(234,179,8,0.4);';
+
+                let html = `
+                    <div style="display:flex; align-items:center; gap:12px">
+                        <img src="${top.entry.targetImage || top.entry.target}" style="width:48px; height:48px; border-radius:50%; border:2px solid var(--accent); object-fit:cover; flex-shrink:0">
+                        <div style="flex:1; min-width:0">
+                            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                                <span style="font-weight:bold; color:white; font-size:13px">${top.entry.name || 'Unnamed Monster'}</span>
+                                <span style="font-size:10px; font-weight:bold; padding:1px 6px; border-radius:4px; border:1px solid; ${badgeColor}">${top.similarity.toFixed(0)}% Match</span>
+                            </div>
+                            <div style="font-size:10px; color:var(--text-secondary); margin-top:2px">Likely belongs to this monster. Click to select.</div>
+                        </div>
+                        <button type="button" class="btn" style="width:auto; padding:6px 14px; font-size:12px; margin:0; background:linear-gradient(135deg, var(--accent) 0%, var(--accent-variant) 100%); color:white; font-weight:bold" onclick="applySuggestedMonster('${top.entry.id}')">Select</button>
+                    </div>
+                `;
+
+                if (runnersUp.length > 0) {
+                    html += `
+                        <div style="margin-top:8px; padding-top:8px; border-top:1px solid rgba(255,255,255,0.1); display:flex; align-items:center; gap:6px; flex-wrap:wrap; font-size:10px; color:var(--text-secondary)">
+                            <span>Other possibilities:</span>
+                            ${runnersUp.map(r => `
+                                <button type="button" onclick="applySuggestedMonster('${r.entry.id}')" style="display:inline-flex; align-items:center; gap:4px; background:rgba(255,255,255,0.08); border:1px solid rgba(255,255,255,0.15); color:white; border-radius:12px; padding:2px 8px; cursor:pointer; font-size:10px" title="${r.entry.name}">
+                                    <img src="${r.entry.targetImage || r.entry.target}" style="width:16px; height:16px; border-radius:50%; object-fit:cover">
+                                    <span>${r.entry.name || 'Unnamed'}</span>
+                                    <span style="color:var(--accent); font-weight:bold">${r.similarity.toFixed(0)}%</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+
+                suggestionContent.innerHTML = html;
+                suggestionBanner.classList.remove('hidden');
+            } catch (err) {
+                console.warn("Smart suggestion error:", err);
+            }
+        }
+
+        function dismissDictSuggestion() {
+            const banner = document.getElementById('dict-smart-suggestion');
+            if (banner) banner.classList.add('hidden');
+        }
+
+        function applySuggestedMonster(id) {
+            selectExistingMonster(id);
+            const item = document.getElementById(`monster-item-${id}`);
+            if (item) {
+                item.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+                item.style.transition = 'all 0.3s ease';
+                item.style.transform = 'scale(1.15)';
+                item.style.boxShadow = '0 0 15px var(--accent)';
+                setTimeout(() => {
+                    item.style.transform = '';
+                    item.style.boxShadow = '';
+                }, 1000);
+            }
+            const monster = dictionary.find(e => e.id === id);
+            if (monster) {
+                showToast(`Selected "${monster.name}"`, "success", 2000);
+            }
+            dismissDictSuggestion();
+        }
 
         async function saveEntry() {
             const name = document.getElementById('entry-name').value.trim();
@@ -2655,6 +2843,7 @@ Example: 132`;
                 selectExistingMonster("");
                 document.getElementById('dict-target-preview-container').classList.add('hidden');
                 dictTargetCrop = null; dictAnswerCrops = [];
+                dismissDictSuggestion();
                 const answersList = document.getElementById('dict-answers-list');
                 if (answersList) answersList.innerHTML = "";
                 renderDictPreview();
@@ -2943,6 +3132,7 @@ Example: 132`;
             document.getElementById('dict-position-picker').classList.remove('hidden');
             document.getElementById('dict-save-btn').disabled = true;
             dictTargetCrop = null; dictAnswerCrops = [];
+            dismissDictSuggestion();
             switchTab('dictionary');
         }
 
