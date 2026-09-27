@@ -1,0 +1,3046 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monster Quiz Solver</title>
+    <meta name="description" content="A mobile-friendly tool to solve monster quizzes using image matching and Gemini AI.">
+    <meta property="og:title" content="Monster Quiz Solver">
+    <meta property="og:description" content="A mobile-friendly tool to solve monster quizzes using image matching and Gemini AI.">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👾</text></svg>">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+    <style>
+        :root {
+            --bg-dark: #121212;
+            --bg-card: #1e1e1e;
+            --accent: #bb86fc;
+            --accent-variant: #3700b3;
+            --text-primary: #e1e1e1;
+            --text-secondary: #b0b0b0;
+            --success: #03dac6;
+            --error: #cf6679;
+            --nav-bg: #1f1f1f;
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px;
+            padding-bottom: 80px;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background-color: var(--nav-bg);
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            border-top: 1px solid #333;
+            z-index: 1000;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 10px;
+            cursor: pointer;
+            transition: color 0.2s;
+        }
+
+        .nav-item.active {
+            color: var(--accent);
+        }
+
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+            margin-bottom: 4px;
+        }
+
+        .card {
+            background-color: var(--bg-card);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        .btn {
+            background-color: var(--accent);
+            color: #000;
+            border: none;
+            border-radius: 8px;
+            padding: 12px 20px;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 8px;
+            transition: opacity 0.2s;
+        }
+
+        .btn:active {
+            opacity: 0.8;
+        }
+
+        .btn-secondary {
+            background-color: #333;
+            color: var(--text-primary);
+        }
+
+        .btn-danger {
+            background-color: var(--error);
+            color: white;
+        }
+
+        input[type="text"], input[type="password"], input[type="number"] {
+            width: 100%;
+            background-color: #2c2c2c;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 12px;
+            color: white;
+            margin-bottom: 12px;
+            font-size: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .slider-container {
+            margin: 16px 0;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent);
+        }
+
+        .result-container {
+            text-align: center;
+            padding: 24px;
+            border: 2px dashed var(--accent);
+            border-radius: 16px;
+            margin: 16px 0;
+        }
+
+        .result-numbers {
+            font-family: var(--font-mono);
+            font-size: 64px;
+            font-weight: 900;
+            color: var(--accent);
+            letter-spacing: 2px;
+            margin: 10px 0;
+            outline: none;
+            display: inline-block;
+            min-width: 180px;
+            text-align: center;
+            transition: all 0.2s ease;
+            padding: 5px 15px;
+            border: 2px solid transparent;
+            white-space: nowrap;
+        }
+
+        .result-numbers:focus {
+            background: rgba(187, 134, 252, 0.1);
+            border-radius: 12px;
+            border-color: rgba(187, 134, 252, 0.3);
+        }
+
+        .status-label {
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--success);
+        }
+
+        .source-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            margin-top: 8px;
+        }
+
+        .time-label {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-family: monospace;
+            opacity: 0.8;
+        }
+
+        .crops-preview {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            justify-content: center;
+            margin: 16px 0;
+        }
+
+        .crop-item {
+            position: relative;
+            width: 60px;
+            height: 60px;
+        }
+
+        .crop-item img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            object-fit: cover;
+        }
+
+        .crop-number {
+            position: absolute;
+            top: -5px;
+            left: -5px;
+            background: var(--accent);
+            color: black;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            font-size: 12px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .dict-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            border-bottom: 1px solid #333;
+        }
+
+        .dict-target {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 1px solid var(--accent);
+        }
+
+        .dict-answers {
+            display: flex;
+            gap: 4px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: background 0.2s;
+        }
+
+        .dict-answer {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            border: 1px solid var(--text-secondary);
+        }
+
+        .dict-answers:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .monster-name-edit {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+            width: 100%;
+            padding: 2px 0;
+            margin-bottom: 4px;
+            outline: none;
+        }
+
+        .monster-name-edit:focus {
+            border-bottom-color: var(--accent);
+        }
+
+        #variants-panel {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            z-index: 4000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .variants-modal {
+            background: #121212;
+            width: 100%;
+            max-width: 500px;
+            max-height: 80vh;
+            border-radius: 24px;
+            border: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            overflow: hidden;
+            animation: modalPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        @keyframes modalPop {
+            from { transform: scale(0.9); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .variants-header {
+            padding: 20px;
+            border-bottom: 1px solid #222;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+        }
+
+        .variants-list {
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            padding: 0;
+        }
+
+        .variant-card {
+            background: transparent;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            border-bottom: 1px solid #222;
+            transition: background 0.2s;
+        }
+
+        .variant-card:hover {
+            background: rgba(255, 255, 255, 0.03);
+        }
+
+        .variant-img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            object-fit: cover;
+            background: #000;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+        #existing-monster-picker {
+            display: flex;
+            gap: 12px;
+            overflow-x: auto;
+            padding: 10px 8px;
+            min-height: 90px;
+            width: 100%;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            scroll-behavior: smooth;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        #existing-monster-picker::-webkit-scrollbar { height: 4px; }
+        #existing-monster-picker::-webkit-scrollbar-track { background: rgba(255, 255, 255, 0.05); border-radius: 10px; }
+        #existing-monster-picker::-webkit-scrollbar-thumb { background: rgba(249, 115, 22, 0.3); border-radius: 10px; }
+
+        .monster-picker-item {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 8px;
+            border: 2px solid transparent;
+            transition: all 0.2s;
+            width: 64px;
+        }
+
+        .monster-picker-item:hover { background: rgba(255, 255, 255, 0.05); }
+
+        .monster-picker-item.selected {
+            background: rgba(249, 115, 22, 0.2);
+            border-color: #f97316;
+            transform: scale(1.05);
+        }
+
+        .monster-picker-item.selected img {
+            border-color: #f97316;
+            box-shadow: 0 0 10px rgba(249, 115, 22, 0.4);
+        }
+
+        .monster-picker-item img {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .monster-picker-item span { display: none; }
+
+        #crop-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.95);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .crop-controls {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-top: 20px;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .crop-btn {
+            background: #333;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            touch-action: manipulation;
+        }
+
+        .crop-btn:active { background: var(--accent); color: black; }
+
+        #post-crop-modal {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-dark);
+            z-index: 2100;
+            display: none;
+            flex-direction: column;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .existing-monsters-row {
+            display: flex;
+            gap: 15px;
+            overflow-x: auto;
+            padding: 10px 0;
+            margin: 20px 0;
+            scrollbar-width: none;
+        }
+
+        .existing-monsters-row::-webkit-scrollbar { display: none; }
+
+        .monster-thumb-btn {
+            flex: 0 0 80px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+        }
+
+        .monster-thumb-img {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            object-fit: cover;
+        }
+
+        .monster-thumb-btn:active .monster-thumb-img {
+            border-color: var(--accent);
+            transform: scale(0.95);
+        }
+
+        .monster-thumb-name {
+            font-size: 10px;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            color: var(--text-secondary);
+        }
+
+        #crop-container {
+            position: relative;
+            width: 100%;
+            max-width: 400px;
+            aspect-ratio: 1;
+            overflow: hidden;
+            background: #000;
+            touch-action: none;
+        }
+
+        #crop-image {
+            position: absolute;
+            cursor: move;
+            transform-origin: center;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .crop-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        .storage-item {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 16px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 12px;
+        }
+
+        .storage-preview {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        #setup-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: var(--bg-dark);
+            z-index: 3000;
+            display: none;
+            flex-direction: column;
+            padding: 10px;
+        }
+
+        #setup-canvas-container {
+            position: relative;
+            flex: 1;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            touch-action: none;
+            border: 2px dashed #333;
+            margin: 10px 0;
+            border-radius: 8px;
+        }
+
+        #setup-placeholder {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            color: var(--text-secondary);
+            font-size: 18px;
+            text-align: center;
+            width: 80%;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+
+        #setup-img { max-width: 100%; max-height: 100%; pointer-events: none; }
+
+        .setup-marker {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 12px;
+            color: white;
+            background: rgba(187, 134, 252, 0.2);
+            cursor: move;
+            touch-action: none;
+            user-select: none;
+            z-index: 10;
+            box-sizing: border-box;
+        }
+
+        #setup-loupe { display: none !important; }
+
+        .setup-crop-preview-container {
+            width: 100px;
+            height: 100px;
+            border: 2px solid var(--accent);
+            border-radius: 50%;
+            overflow: hidden;
+            background: #000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 15px rgba(187, 134, 252, 0.3);
+        }
+
+        .setup-crop-preview-container img { width: 100%; height: 100%; object-fit: cover; }
+
+        .arrow-btn {
+            width: 36px;
+            height: 36px;
+            background: #222;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .arrow-btn:hover { background: #333; border-color: var(--accent); }
+        .arrow-btn:active { transform: scale(0.9); background: var(--accent); color: black; }
+
+        .setup-marker.answer { border-color: var(--success); background: rgba(3, 218, 198, 0.2); }
+        .setup-marker.active { box-shadow: 0 0 15px var(--accent); border-width: 3px; z-index: 20; }
+
+        .setup-controls {
+            background: var(--bg-card);
+            padding: 16px;
+            border-radius: 12px 12px 0 0;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.5);
+        }
+
+        .setup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        #toast-container {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none;
+        }
+
+        .toast {
+            background: rgba(30, 30, 30, 0.95);
+            color: white;
+            padding: 10px 18px;
+            border-radius: 25px;
+            font-size: 13px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            border: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: toast-in 0.3s ease-out forwards;
+            min-width: 180px;
+            justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        .toast.syncing { border-left: 4px solid var(--accent); }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.error { border-left: 4px solid var(--error); }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(-20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .toast.fade-out { animation: toast-out 0.3s ease-in forwards; }
+
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateY(0); }
+            to { opacity: 0; transform: translateY(-20px); }
+        }
+
+        .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .preview-overlay-container { position: relative; display: inline-block; max-width: 100%; }
+
+        .preview-circle {
+            position: absolute;
+            border: 1px solid var(--accent);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            background: rgba(187, 134, 252, 0.1);
+        }
+
+        .preview-circle.answer { border-color: var(--success); background: rgba(3, 218, 198, 0.1); }
+
+        #preview-circles-layer, #dict-circles-layer {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+        }
+
+        .preview-circle.clickable { pointer-events: auto; cursor: pointer; }
+
+        .debug-item { border-bottom: 1px solid #333; padding: 8px 0; margin-bottom: 8px; }
+        .debug-item:last-child { border-bottom: none; }
+        .debug-label { color: var(--accent); font-weight: bold; margin-right: 8px; }
+        .debug-value { color: #fff; }
+
+        .hidden { display: none; }
+
+        #screenshot-preview, #dict-screenshot-preview {
+            max-width: 100%;
+            border-radius: 8px;
+            max-height: 400px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 480px), (max-height: 400px) {
+            .tab-content { padding: 8px; padding-bottom: 64px; }
+            .result-numbers { font-size: 32px; letter-spacing: 4px; min-width: 120px; }
+            .result-container { padding: 10px; margin: 6px 0; }
+            .crop-item { width: 40px; height: 40px; }
+            .bottom-nav { height: 48px; }
+            .nav-item svg { width: 18px; height: 18px; margin-bottom: 2px; }
+            .nav-item { font-size: 8px; }
+            h1 { font-size: 18px; }
+            .btn { padding: 8px 12px; font-size: 13px; }
+            .card { padding: 8px; margin-bottom: 6px; }
+            .setup-marker { width: 40px; height: 40px; font-size: 10px; }
+            #crop-container, .crop-controls { max-width: 260px; }
+            #screenshot-preview, #dict-screenshot-preview { max-height: 220px; }
+            .setup-crop-preview-container { width: 60px; height: 60px; }
+            .slider-container label { font-size: 10px; }
+            .slider-container input { height: 4px; }
+        }
+
+        @media (max-width: 300px), (max-height: 300px) {
+            .tab-content { padding: 4px; padding-bottom: 48px; }
+            .result-numbers { font-size: 24px; letter-spacing: 2px; min-width: 100px; }
+            .result-container { padding: 6px; margin: 4px 0; }
+            .crop-item { width: 32px; height: 32px; }
+            .bottom-nav { height: 40px; }
+            .nav-item svg { width: 16px; height: 16px; margin-bottom: 1px; }
+            .nav-item { font-size: 7px; }
+            h1 { font-size: 16px; }
+            .btn { padding: 6px 10px; font-size: 12px; }
+            .card { padding: 6px; margin-bottom: 4px; }
+            .toast { min-width: 120px; font-size: 10px; padding: 4px 8px; }
+            .setup-marker { width: 32px; height: 32px; font-size: 9px; }
+            input[type="text"], input[type="password"], input[type="number"] { padding: 6px; font-size: 12px; margin-bottom: 6px; }
+            .slider-container { margin: 4px 0; }
+            .slider-container label { font-size: 9px; }
+            .status-label { font-size: 10px; }
+            .source-label { font-size: 9px; }
+            .time-label { font-size: 9px; }
+        }
+    </style>
+</head>
+<body>
+    <div id="toast-container"></div>
+
+    <!-- Solver Tab -->
+    <div id="tab-solver" class="tab-content active">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1px">
+            <h1 style="margin:0">Solver</h1>
+            <button class="btn btn-secondary" style="width:auto; padding:8px 12px; font-size:12px" onclick="refreshSolver()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle; margin-right:4px"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+                Refresh
+            </button>
+        </div>
+
+        <div id="solver-results" class="hidden">
+            <div class="result-container">
+                <div class="status-label">COMPLETE</div>
+                <div id="result-numbers" class="result-numbers" contenteditable="true" inputmode="numeric" spellcheck="false" oninput="handleResultInput(event)" onblur="formatResultNumbers()">000</div>
+                <div id="match-source" class="source-label">Waiting...</div>
+                <div id="solve-time" class="time-label"></div>
+            </div>
+            <div id="detected-crops" class="crops-preview"></div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; flex-direction:column; gap:1px">
+                <button id="solve-btn" class="btn" disabled>SOLVE</button>
+                <div>
+                    <input type="file" id="screenshot-input" accept="image/*" class="hidden">
+                    <button class="btn btn-secondary w-full" onclick="document.getElementById('screenshot-input').click()">Pick Image</button>
+                </div>
+                <div id="screenshot-preview-container" class="hidden" style="text-align:center;">
+                    <div class="preview-overlay-container">
+                        <img id="screenshot-preview">
+                        <div id="preview-circles-layer"></div>
+                    </div>
+                </div>
+                <div class="slider-container" style="margin-top:8px">
+                    <label>Confidence Threshold: <span id="threshold-val">75</span>%</label>
+                    <input type="range" id="threshold-slider" min="50" max="95" value="75">
+                </div>
+            </div>
+        </div>
+
+        <div id="debug-panel" class="hidden card" style="margin-top:20px; border: 1px solid #444; background: #111; font-family: monospace; font-size: 11px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #333; padding-bottom:5px">
+                <h3 style="margin:0; font-size:12px; color:var(--accent)">DEBUG PANEL</h3>
+                <span id="debug-dict-count" style="color:var(--text-secondary)">Entries: 0</span>
+            </div>
+            <div id="debug-content" style="white-space:pre-wrap; color:#aaa; max-height:300px; overflow-y:auto"></div>
+        </div>
+    </div>
+
+    <!-- Dictionary Tab -->
+    <div id="tab-dictionary" class="tab-content">
+        <h1 style="margin-top:0">Dictionary</h1>
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+                <h3 style="margin:0">Add Entry</h3>
+                <button class="btn btn-danger" style="width:auto; padding:4px 12px; font-size:12px" onclick="clearDictionary()">Clear All</button>
+            </div>
+            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px">Upload a full quiz screenshot to add a new monster and its answers.</p>
+            <div style="display:flex; gap:10px; margin-bottom:10px">
+                <button class="btn" style="flex:1; background: linear-gradient(135deg, var(--accent) 0%, var(--accent-variant) 100%); color: white; box-shadow: 0 4px 15px rgba(187, 134, 252, 0.3); border: 1px solid rgba(255,255,255,0.1);" onclick="document.getElementById('dict-screenshot-input').click()">Upload Full Screenshot</button>
+                <input type="file" id="dict-screenshot-input" accept="image/*" class="hidden" onchange="handleDictScreenshot(event)">
+            </div>
+
+            <div id="dict-preview-container" class="hidden" style="margin-top:10px; text-align:center;">
+                <div class="preview-overlay-container">
+                    <img id="dict-screenshot-preview">
+                    <div id="dict-circles-layer"></div>
+                </div>
+                <div id="dict-position-picker" class="hidden mt-2 p-2 bg-black/30 rounded border border-white/10 text-left">
+                    <div class="mb-4 p-2 bg-white/5 rounded border border-white/10">
+                        <label class="text-[10px] text-white/50 uppercase font-bold tracking-wider block mb-1">Pick Existing Monster (Optional):</label>
+                        <div id="existing-monster-picker" class="scrollbar-hide"></div>
+                    </div>
+                    <div class="text-[10px] text-white/50 mb-2 uppercase font-bold tracking-wider">Step 1: Click a circle to pick Target (Optional if picked above)</div>
+                    <div id="dict-target-preview-container" class="hidden flex flex-col gap-2 mb-4 p-2 bg-orange-500/10 border border-orange-500/20 rounded">
+                        <div class="flex items-center gap-4">
+                            <img id="dict-target-preview" class="w-16 h-16 rounded-full border-2 border-orange-500 object-cover">
+                            <div class="flex-1">
+                                <div class="text-xs font-bold text-orange-400">Target Selected</div>
+                                <input type="text" id="entry-name" placeholder="Monster Name..." class="w-full bg-black/50 border-b border-white/20 text-white text-xs p-1 mt-1 outline-none focus:border-orange-500">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-[10px] text-white/50 mb-1 uppercase font-bold tracking-wider">Step 2: Pick associated answers</div>
+                    <div class="text-[9px] text-white/30 mb-2 italic">Click the circles on the screenshot to add new answer variants to the selected monster.</div>
+                    <div id="dict-answers-list" class="flex flex-wrap gap-2 mb-4 min-h-[40px]"></div>
+                    <div class="flex gap-2">
+                        <button id="dict-save-btn" class="btn flex-1" onclick="saveEntry()" disabled>SAVE ENTRY</button>
+                        <button class="btn btn-secondary flex-1" onclick="cancelDictEntry()">CANCEL</button>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:8px; margin-top:15px">
+                <button class="btn btn-secondary" style="flex:1" onclick="exportDictionary()">Export JSON</button>
+                <button class="btn btn-secondary" style="flex:1" onclick="importDictionary()">Import JSON</button>
+            </div>
+        </div>
+
+        <div id="dictionary-list"></div>
+
+        <div id="import-preview-section" class="hidden card" style="margin-top:20px; border: 1px solid var(--accent)">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+                <h3 style="margin:0">Import Preview</h3>
+                <button class="btn btn-secondary" style="width:auto; padding:4px 12px; font-size:12px" onclick="closeImportPreview()">Close</button>
+            </div>
+            <div style="max-height:300px; overflow:auto; background:#000; padding:10px; border-radius:8px">
+                <pre id="import-json-display" style="font-size:10px; color:var(--success); margin:0; white-space:pre-wrap; word-break:break-all"></pre>
+            </div>
+            <button id="confirm-import-btn" class="btn" style="margin-top:10px">Confirm Import</button>
+        </div>
+    </div>
+
+    <!-- Storage Tab -->
+    <div id="tab-storage" class="tab-content hidden">
+        <h1 style="margin-top:0">Storage</h1>
+        <div id="storage-list"></div>
+    </div>
+
+    <!-- Settings Tab -->
+    <div id="tab-settings" class="tab-content">
+        <h1 style="margin-top:0">Settings</h1>
+
+        <div id="fb-status-bar" class="card" style="display:flex; align-items:center; gap:10px; padding:12px; margin-bottom:16px; border-left: 4px solid #666;">
+            <div id="fb-status-dot" style="width:12px; height:12px; border-radius:50%; background:#666;"></div>
+            <span id="fb-status-text" style="font-weight:500">Firebase: Not Connected</span>
+        </div>
+
+        <div class="card">
+            <h3>Circle Positions</h3>
+            <p style="font-size:12px; color:var(--text-secondary); margin-bottom:12px">Manually position markers over where monsters appear on your screen.</p>
+            <button class="btn" onclick="openCircleSetup()">Configure Circle Positions</button>
+            <div style="display:flex; gap:10px; margin-top:10px">
+                <button class="btn btn-secondary" style="flex:1; margin:0" onclick="exportCircleConfig()">Export Positions JSON</button>
+                <button class="btn btn-secondary" style="flex:1; margin:0" onclick="document.getElementById('circle-config-import-input').click()">Import Positions JSON</button>
+            </div>
+            <input type="file" id="circle-config-import-input" accept=".json,application/json" style="display:none" onchange="importCircleConfig(event)">
+            <button class="btn btn-secondary" style="margin-top:10px" onclick="resetCircleSetup()">Reset to Default (1280x720)</button>
+            <button class="btn btn-secondary" style="margin-top:10px; border: 1px solid var(--accent)" onclick="rebuildDictionaryHashes(event)">Rebuild Dictionary Hashes (from current circle positions)</button>
+            <p style="font-size:11px; color:var(--text-secondary); margin-top:8px">Recrops and rehashes all entries using original screenshots and current positions.</p>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px">
+                <h3 style="margin:0">Firebase Config</h3>
+                <button class="btn btn-secondary" style="width:auto; padding:4px 10px; font-size:12px; margin:0; border-color: rgba(239,68,68,0.4); color: #f87171;" onclick="clearAllFirebaseFields()">Clear All Fields</button>
+            </div>
+            <label>API Key</label><input type="text" id="fb-apiKey" placeholder="apiKey">
+            <label>Auth Domain</label><input type="text" id="fb-authDomain" placeholder="authDomain">
+            <label>Project ID</label><input type="text" id="fb-projectId" placeholder="projectId">
+            <label>Storage Bucket</label><input type="text" id="fb-storageBucket" placeholder="storageBucket">
+            <label>App ID</label><input type="text" id="fb-appId" placeholder="appId">
+            <label>Firestore Database ID</label><input type="text" id="fb-databaseId" placeholder="ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759">
+            <div style="display:flex; gap:10px; margin-bottom:10px">
+                <button class="btn" style="flex:1; margin:0" onclick="saveFirebaseConfig()">Save & Connect</button>
+                <button class="btn btn-secondary" style="flex:1; margin:0; border-color: rgba(239,68,68,0.5); color: #f87171;" onclick="disconnectDatabase()">Disconnect Database</button>
+            </div>
+            <div style="display:flex; gap:10px">
+                <button class="btn btn-secondary" style="flex:1; margin:0" onclick="exportFirebaseConfig()">Export Config</button>
+                <button class="btn btn-secondary" style="flex:1; margin:0" onclick="document.getElementById('fb-config-import-input').click()">Import Config</button>
+            </div>
+            <input type="file" id="fb-config-import-input" accept=".json,application/json" style="display:none" onchange="importFirebaseConfig(event)">
+        </div>
+
+        <div class="card">
+            <h3>Gemini API Key Pool</h3>
+            <div id="gemini-key-list" style="margin-bottom:10px"></div>
+            <div style="display:flex; gap:8px">
+                <input type="password" id="new-gemini-key" placeholder="Add new API Key" style="margin-bottom:0">
+                <button class="btn" style="width:auto; margin-bottom:0" onclick="addGeminiKey()">Add</button>
+            </div>
+            <p style="font-size:12px; color:var(--text-secondary); margin-top:8px">Keys are stored in Firebase and rotated automatically.</p>
+        </div>
+
+        <div class="card">
+            <h3>General</h3>
+            <div class="slider-container">
+                <label>Default Confidence: <span id="settings-threshold-val">75</span>%</label>
+                <input type="range" id="settings-threshold-slider" min="50" max="95" value="75">
+            </div>
+            <label style="display:flex; align-items:center; gap:10px">
+                <input type="checkbox" id="debug-mode-toggle" style="width:20px; height:20px">
+                Enable Debug Panel
+            </label>
+            <button class="btn btn-danger" style="margin-top:20px" onclick="clearScreenshots()">Clear Screenshots</button>
+            <button class="btn btn-danger" style="margin-top:10px" onclick="clearDictionary()">Clear Dictionary</button>
+        </div>
+    </div>
+
+    <!-- Bottom Nav -->
+    <nav class="bottom-nav">
+        <div class="nav-item active" onclick="switchTab('solver')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            Solver
+        </div>
+        <div class="nav-item" onclick="switchTab('dictionary')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/><path d="M8 7h6"/><path d="M8 11h8"/></svg>
+            Dict
+        </div>
+        <div class="nav-item hidden" onclick="switchTab('storage')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><path d="M10 12h4"/></svg>
+            Storage
+        </div>
+        <div class="nav-item" onclick="switchTab('settings')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+            Settings
+        </div>
+    </nav>
+
+    <!-- Circle Setup Overlay -->
+    <div id="setup-overlay">
+        <div class="setup-header">
+            <h2 style="margin:0">Circle Setup</h2>
+            <div style="display:flex; gap:8px; flex-wrap:wrap">
+                <button class="btn btn-secondary" style="width:auto; margin:0; padding:6px 12px; font-size:12px" onclick="exportCircleConfig()">Export Config</button>
+                <button class="btn btn-secondary" style="width:auto; margin:0; padding:6px 12px; font-size:12px" onclick="document.getElementById('setup-circle-import-input').click()">Import Config</button>
+                <input type="file" id="setup-circle-import-input" accept=".json,application/json" style="display:none" onchange="importCircleConfig(event)">
+                <button class="btn" style="width:auto; margin:0; padding:6px 12px; font-size:12px; background: var(--accent); color: black;" onclick="document.getElementById('setup-upload').click()">Upload Sample Screenshot</button>
+                <button class="btn btn-secondary" style="width:auto; margin:0; padding:6px 12px; font-size:12px" onclick="closeCircleSetup()">Cancel</button>
+            </div>
+            <input type="file" id="setup-upload" accept="image/*" style="display:none" onchange="handleSetupUpload(event)">
+        </div>
+
+        <div id="setup-canvas-container">
+            <div id="setup-placeholder">Upload a screenshot to calibrate circle positions</div>
+            <img id="setup-img" style="display:none">
+        </div>
+
+        <div class="setup-controls">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:15px; margin-bottom:15px">
+                <div class="slider-container" style="margin:0">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px">
+                        <label style="margin:0">Target Radius: <span id="target-radius-val">48</span>px</label>
+                        <div style="display:flex; gap:5px">
+                            <button class="btn btn-secondary" style="width:30px; height:30px; padding:0; margin:0" onclick="adjustRadius('targets', -1)">-</button>
+                            <button class="btn btn-secondary" style="width:30px; height:30px; padding:0; margin:0" onclick="adjustRadius('targets', 1)">+</button>
+                        </div>
+                    </div>
+                    <input type="range" id="target-radius-slider" min="10" max="150" value="48" oninput="updateSetupRadius()">
+                </div>
+                <div class="slider-container" style="margin:0">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px">
+                        <label style="margin:0">Answer Radius: <span id="answer-radius-val">48</span>px</label>
+                        <div style="display:flex; gap:5px">
+                            <button class="btn btn-secondary" style="width:30px; height:30px; padding:0; margin:0" onclick="adjustRadius('answers', -1)">-</button>
+                            <button class="btn btn-secondary" style="width:30px; height:30px; padding:0; margin:0" onclick="adjustRadius('answers', 1)">+</button>
+                        </div>
+                    </div>
+                    <input type="range" id="answer-radius-slider" min="10" max="150" value="48" oninput="updateSetupRadius()">
+                </div>
+            </div>
+
+            <div id="manual-setup-panel" class="hidden" style="margin-top:15px; border-top:1px solid rgba(255,255,255,0.1); padding-top:15px; margin-bottom:15px">
+                <div style="display:flex; gap:15px; align-items:flex-start">
+                    <div class="setup-crop-preview-container">
+                        <img id="setup-crop-preview" src="" alt="Crop Preview">
+                    </div>
+                    <div style="flex:1">
+                        <div style="font-weight:bold; margin-bottom:10px; font-size:14px; display:flex; align-items:center; gap:10px">
+                            Manual Position:
+                            <select id="active-marker-select" style="background:#1a1a1a; border:1px solid #333; color:white; padding:2px 4px; border-radius:4px; font-size:12px" onchange="selectMarkerFromDropdown()">
+                                <option value="">Select Marker</option>
+                                <option value="T1">T1</option>
+                                <option value="T2">T2</option>
+                                <option value="T3">T3</option>
+                                <option value="A1">A1</option>
+                                <option value="A2">A2</option>
+                                <option value="A3">A3</option>
+                                <option value="A4">A4</option>
+                            </select>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:10px">
+                            <div class="slider-container" style="margin:0">
+                                <label style="font-size:11px">X Position</label>
+                                <input type="number" id="manual-x" step="0.1" style="width:100%; background:#1a1a1a; border:1px solid #333; color:white; padding:4px; border-radius:4px" oninput="updateManualMarker()">
+                            </div>
+                            <div class="slider-container" style="margin:0">
+                                <label style="font-size:11px">Y Position</label>
+                                <input type="number" id="manual-y" step="0.1" style="width:100%; background:#1a1a1a; border:1px solid #333; color:white; padding:4px; border-radius:4px" oninput="updateManualMarker()">
+                            </div>
+                            <div class="slider-container" style="margin:0">
+                                <label style="font-size:11px">Radius</label>
+                                <input type="number" id="manual-radius" step="0.5" style="width:100%; background:#1a1a1a; border:1px solid #333; color:white; padding:4px; border-radius:4px" oninput="updateManualMarker()">
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:center; align-items:center; gap:15px">
+                            <div style="display:grid; grid-template-columns: repeat(3, 36px); gap:5px">
+                                <div></div>
+                                <button class="arrow-btn" onclick="moveMarker(0, -1)">↑</button>
+                                <div></div>
+                                <button class="arrow-btn" onclick="moveMarker(-1, 0)">←</button>
+                                <button class="arrow-btn" onclick="moveMarker(0, 1)">↓</button>
+                                <button class="arrow-btn" onclick="moveMarker(1, 0)">→</button>
+                            </div>
+                            <div style="display:flex; flex-direction:column; gap:2px">
+                                <label style="font-size:10px; color:var(--text-secondary)">Step (px)</label>
+                                <input type="number" id="manual-step" value="1" step="0.1" min="0.1" style="width:55px; background:#1a1a1a; border:1px solid #333; color:white; padding:4px; border-radius:4px; font-size:12px">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div style="display:flex; gap:10px">
+                <button class="btn" style="flex:1; margin:0" onclick="saveCircleSetup()">Save Positions</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Variants Panel -->
+    <div id="variants-panel" onclick="if(event.target === this) closeVariantsPanel()">
+        <div class="variants-modal">
+            <div class="variants-header">
+                <h2 id="variants-title" style="margin:0; font-size:18px">Monster Variants</h2>
+                <button class="btn btn-secondary" style="width:36px; height:36px; border-radius:50%; padding:0; display:flex; align-items:center; justify-content:center; margin:0" onclick="closeVariantsPanel()">✕</button>
+            </div>
+            <div id="variants-list" class="variants-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- State ---
+        let activeTab = 'solver';
+        let dictionary = [];
+        let screenshots = [];
+        let currentScreenshot = null;
+        let detectedCrops = [];
+        let dictScreenshot = null;
+        let dictTargetCrop = null;
+        let dictAnswerCrops = [];
+        let firebaseApp = null;
+        let db = null;
+        let storage = null;
+        let geminiKeys = [];
+
+        function loadImage(src) {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.onerror = reject;
+                img.src = src;
+            });
+        }
+
+        function showToast(message, type = 'info', duration = 3000) {
+            const container = document.getElementById('toast-container');
+            if (!container) return null;
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            let icon = '';
+            if (type === 'syncing') icon = '<div class="spinner"></div>';
+            else if (type === 'success') icon = '<span style="color:var(--success)">✓</span>';
+            else if (type === 'error') icon = '<span style="color:var(--error)">✕</span>';
+            toast.innerHTML = `${icon} <span>${message}</span>`;
+            container.appendChild(toast);
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.classList.add('fade-out');
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+            return toast;
+        }
+
+        const DEFAULT_CIRCLE_CONFIG = {
+            targets: [
+                { x: 200, y: 150, radius: 48 },
+                { x: 640, y: 150, radius: 48 },
+                { x: 1080, y: 150, radius: 48 }
+            ],
+            answers: [
+                { x: 200, y: 550, radius: 48 },
+                { x: 640, y: 550, radius: 48 },
+                { x: 1080, y: 550, radius: 48 },
+                { x: 1420, y: 550, radius: 48 }
+            ]
+        };
+        let circleConfig = JSON.parse(localStorage.getItem('circlePositions')) || DEFAULT_CIRCLE_CONFIG;
+
+        window.onload = () => {
+            if (circleConfig.markers) {
+                const newConfig = JSON.parse(JSON.stringify(DEFAULT_CIRCLE_CONFIG));
+                circleConfig.markers.forEach(m => {
+                    if (m.id.startsWith('T')) {
+                        const idx = parseInt(m.id[1]) - 1;
+                        if (newConfig.targets[idx]) {
+                            newConfig.targets[idx].x = m.x;
+                            newConfig.targets[idx].y = m.y;
+                            newConfig.targets[idx].radius = circleConfig.targetRadius || 48;
+                        }
+                    } else {
+                        const idx = parseInt(m.id[1]) - 1;
+                        if (newConfig.answers[idx]) {
+                            newConfig.answers[idx].x = m.x;
+                            newConfig.answers[idx].y = m.y;
+                            newConfig.answers[idx].radius = circleConfig.answerRadius || 48;
+                        }
+                    }
+                });
+                circleConfig = newConfig;
+                localStorage.setItem('circlePositions', JSON.stringify(circleConfig));
+            }
+
+            try {
+                const cached = localStorage.getItem('dictionary_cache');
+                if (cached) {
+                    const data = JSON.parse(cached);
+                    if (data && data.version === 1 && Array.isArray(data.entries)) {
+                        dictionary = data.entries;
+                    } else if (Array.isArray(data)) {
+                        dictionary = data;
+                    } else {
+                        dictionary = [];
+                    }
+                } else {
+                    dictionary = [];
+                }
+                const cachedScreenshots = localStorage.getItem('screenshots_local');
+                if (cachedScreenshots) screenshots = JSON.parse(cachedScreenshots);
+            } catch (e) {
+                console.error("Failed to parse local cache", e);
+                dictionary = [];
+            }
+            loadSettings();
+            initFirebase();
+            renderDictionary();
+            renderStorage();
+            setupEventListeners();
+            renderPreviewCircles();
+            setTimeout(() => deduplicateDictionary(), 2000);
+        };
+
+        function setupEventListeners() {
+            const tSlider = document.getElementById('threshold-slider');
+            const sSlider = document.getElementById('settings-threshold-slider');
+            const tVal = document.getElementById('threshold-val');
+            const sVal = document.getElementById('settings-threshold-val');
+
+            tSlider.oninput = (e) => {
+                sSlider.value = e.target.value;
+                tVal.innerText = e.target.value;
+                sVal.innerText = e.target.value;
+                localStorage.setItem('threshold', e.target.value);
+                syncSettingsToFirebase();
+            };
+            sSlider.oninput = (e) => {
+                tSlider.value = e.target.value;
+                tVal.innerText = e.target.value;
+                sVal.innerText = e.target.value;
+                localStorage.setItem('threshold', e.target.value);
+                syncSettingsToFirebase();
+            };
+
+            document.getElementById('debug-mode-toggle').onchange = (e) => {
+                localStorage.setItem('debug-mode', e.target.checked);
+                updateDebugPanelVisibility();
+                syncSettingsToFirebase();
+            };
+
+            document.getElementById('screenshot-input').onchange = handleScreenshot;
+            document.getElementById('solve-btn').onclick = runPipeline;
+
+            window.addEventListener('mousemove', handleDragging);
+            window.addEventListener('mouseup', stopDragging);
+            window.addEventListener('touchmove', handleDragging, { passive: false });
+            window.addEventListener('touchend', stopDragging);
+            window.addEventListener('resize', renderPreviewCircles);
+        }
+
+        function refreshSolver() {
+            currentScreenshot = null;
+            document.getElementById('screenshot-preview').src = "";
+            document.getElementById('screenshot-preview-container').classList.add('hidden');
+            document.getElementById('solver-results').classList.add('hidden');
+            document.getElementById('solve-btn').disabled = true;
+            document.getElementById('screenshot-input').value = "";
+            document.getElementById('debug-content').innerHTML = "";
+        }
+
+        async function syncSettingsToFirebase() {
+            if (!db) return;
+            const toast = showToast("Syncing settings...", "syncing", 0);
+            try {
+                const settings = {
+                    circleConfig: JSON.stringify(circleConfig),
+                    threshold: parseInt(document.getElementById('threshold-slider').value),
+                    debugPanelEnabled: document.getElementById('debug-mode-toggle').checked,
+                    updatedAt: Date.now()
+                };
+                await db.collection('config').doc('appSettings').set(settings);
+                toast.classList.add('fade-out');
+                setTimeout(() => toast.remove(), 300);
+                showToast("Settings synced", "success");
+            } catch (e) {
+                toast.remove();
+                showToast("Settings sync failed", "error");
+            }
+        }
+
+        function loadSettings() {
+            const threshold = localStorage.getItem('threshold') || 75;
+            document.getElementById('threshold-slider').value = threshold;
+            document.getElementById('settings-threshold-slider').value = threshold;
+            document.getElementById('threshold-val').innerText = threshold;
+            document.getElementById('settings-threshold-val').innerText = threshold;
+
+            document.getElementById('fb-apiKey').value = localStorage.getItem('fb-apiKey') || '';
+            document.getElementById('fb-authDomain').value = localStorage.getItem('fb-authDomain') || '';
+            const savedProjectId = localStorage.getItem('fb-projectId') || '';
+            document.getElementById('fb-projectId').value = savedProjectId;
+            document.getElementById('fb-storageBucket').value = localStorage.getItem('fb-storageBucket') || '';
+            document.getElementById('fb-appId').value = localStorage.getItem('fb-appId') || '';
+            const dbIdEl = document.getElementById('fb-databaseId');
+            if (dbIdEl) {
+                let savedDbId = localStorage.getItem('fb-databaseId') || '';
+                if (savedProjectId !== 'gen-lang-client-0408655533' && savedDbId === 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759') {
+                    savedDbId = '(default)';
+                    localStorage.setItem('fb-databaseId', '(default)');
+                }
+                if (!savedDbId) {
+                    savedDbId = (savedProjectId === 'gen-lang-client-0408655533') ? 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759' : '(default)';
+                }
+                dbIdEl.value = savedDbId;
+            }
+            document.getElementById('debug-mode-toggle').checked = localStorage.getItem('debug-mode') === 'true';
+            updateDebugPanelVisibility();
+        }
+
+        function updateDebugPanelVisibility() {
+            const panel = document.getElementById('debug-panel');
+            const isEnabled = document.getElementById('debug-mode-toggle').checked;
+            if (isEnabled) panel.classList.remove('hidden');
+            else panel.classList.add('hidden');
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            document.getElementById(`tab-${tab}`).classList.add('active');
+            const navItems = document.querySelectorAll('.nav-item');
+            const index = ['solver', 'dictionary', 'storage', 'settings'].indexOf(tab);
+            navItems[index].classList.add('active');
+            activeTab = tab;
+            if (tab === 'solver') renderPreviewCircles();
+            else if (tab === 'dictionary') renderDictPreview();
+        }
+
+        function getFirestoreInstance(appInstance, databaseId) {
+            let targetId = databaseId || localStorage.getItem('fb-databaseId') || '';
+            const projectId = appInstance.options?.projectId || '';
+            if (!targetId || targetId === 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759') {
+                if (projectId === 'gen-lang-client-0408655533') {
+                    targetId = 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759';
+                } else {
+                    targetId = '';
+                }
+            }
+            if (!targetId || targetId === '(default)') return appInstance.firestore();
+            if (appInstance.container && appInstance.container.getProvider) {
+                try {
+                    const provider = appInstance.container.getProvider("firestore");
+                    const delegate = provider.getImmediate({ identifier: targetId });
+                    return new firebase.firestore.Firestore(appInstance, delegate);
+                } catch (e) {
+                    console.warn("Could not instantiate named database, falling back to default:", e);
+                }
+            }
+            return appInstance.firestore();
+        }
+
+        let activeDbListeners = [];
+
+        function clearActiveDbListeners() {
+            if (Array.isArray(activeDbListeners)) {
+                activeDbListeners.forEach(unsub => {
+                    if (typeof unsub === 'function') { try { unsub(); } catch (e) {} }
+                });
+                activeDbListeners = [];
+            }
+        }
+
+        async function initFirebase() {
+            let config = {
+                apiKey: localStorage.getItem('fb-apiKey'),
+                authDomain: localStorage.getItem('fb-authDomain'),
+                projectId: localStorage.getItem('fb-projectId'),
+                storageBucket: localStorage.getItem('fb-storageBucket'),
+                appId: localStorage.getItem('fb-appId'),
+                firestoreDatabaseId: localStorage.getItem('fb-databaseId')
+            };
+
+            if (!config.apiKey || !config.projectId) {
+                try {
+                    const res = await fetch('/firebase-applet-config.json');
+                    if (res.ok) {
+                        const appletConfig = await res.json();
+                        config = {
+                            apiKey: config.apiKey || appletConfig.apiKey || '',
+                            authDomain: config.authDomain || appletConfig.authDomain || '',
+                            projectId: config.projectId || appletConfig.projectId || '',
+                            storageBucket: config.storageBucket || appletConfig.storageBucket || '',
+                            appId: config.appId || appletConfig.appId || '',
+                            firestoreDatabaseId: config.firestoreDatabaseId || appletConfig.firestoreDatabaseId || ''
+                        };
+                        if (config.apiKey) localStorage.setItem('fb-apiKey', config.apiKey);
+                        if (config.authDomain) localStorage.setItem('fb-authDomain', config.authDomain);
+                        if (config.projectId) localStorage.setItem('fb-projectId', config.projectId);
+                        if (config.storageBucket) localStorage.setItem('fb-storageBucket', config.storageBucket);
+                        if (config.appId) localStorage.setItem('fb-appId', config.appId);
+                        if (config.firestoreDatabaseId) localStorage.setItem('fb-databaseId', config.firestoreDatabaseId);
+                        const fields = ['apiKey','authDomain','projectId','storageBucket','appId'];
+                        fields.forEach(f => { const el = document.getElementById('fb-'+f); if (el) el.value = config[f]; });
+                        const dbIdInput = document.getElementById('fb-databaseId');
+                        if (dbIdInput) dbIdInput.value = (config.projectId === 'gen-lang-client-0408655533' && config.firestoreDatabaseId) ? config.firestoreDatabaseId : '(default)';
+                    }
+                } catch (e) { console.warn("Could not load /firebase-applet-config.json:", e); }
+            }
+
+            if (config.projectId !== 'gen-lang-client-0408655533' && config.firestoreDatabaseId === 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759') {
+                config.firestoreDatabaseId = '(default)';
+                localStorage.setItem('fb-databaseId', '(default)');
+            }
+
+            if (!config.apiKey || !config.projectId) {
+                updateFirebaseStatus('disconnected', 'Firebase: Config Missing');
+                return;
+            }
+
+            updateFirebaseStatus('connecting', 'Firebase: Connecting...');
+
+            try {
+                if (firebase.apps.length === 0) firebaseApp = firebase.initializeApp(config);
+                else firebaseApp = firebase.app();
+                if (firebase.auth) {
+                    try { if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously(); } catch (e) {}
+                }
+                db = getFirestoreInstance(firebaseApp, config.firestoreDatabaseId);
+                storage = firebaseApp.storage();
+                await db.collection('dictionary').limit(1).get();
+                updateFirebaseStatus('connected', 'Firebase: Connected');
+                clearActiveDbListeners();
+
+                const unsubDict = db.collection('dictionary').onSnapshot(snapshot => {
+                    const newDict = [];
+                    snapshot.forEach(doc => {
+                        if (doc.id === 'v1_data') return;
+                        const entry = doc.data();
+                        entry.id = doc.id;
+                        if (entry.target && !entry.targetImage) entry.targetImage = entry.target;
+                        if (entry.answers) {
+                            entry.answers = entry.answers.map(a => typeof a === 'string' ? { data: a, hash: '' } : a);
+                        } else entry.answers = [];
+                        newDict.push(entry);
+                    });
+                    dictionary = newDict;
+                    renderDictionary();
+                    try {
+                        localStorage.setItem('dictionary_cache', JSON.stringify({ version: 1, entries: dictionary, updatedAt: Date.now() }));
+                    } catch (e) {}
+                    showToast("Dictionary synced", "success");
+                }, (error) => { showToast("Dictionary sync error", "error"); });
+                activeDbListeners.push(unsubDict);
+
+                db.collection('dictionary').doc('v1_data').get().then(async (doc) => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data && Array.isArray(data.entries)) {
+                            const batch = db.batch();
+                            data.entries.forEach(entry => {
+                                const newDocRef = db.collection('dictionary').doc(entry.id || Date.now().toString() + Math.random().toString(36).substr(2, 5));
+                                batch.set(newDocRef, entry);
+                            });
+                            batch.delete(doc.ref);
+                            await batch.commit();
+                        }
+                    }
+                });
+
+                const unsubKeys = db.collection('config').doc('geminiKeys').onSnapshot(doc => {
+                    geminiKeys = doc.exists ? (doc.data().keys || []) : [];
+                    renderGeminiKeys();
+                });
+                activeDbListeners.push(unsubKeys);
+
+                const unsubSettings = db.collection('config').doc('appSettings').onSnapshot(doc => {
+                    if (doc.exists) {
+                        const data = doc.data();
+                        if (data.circleConfig) {
+                            circleConfig = JSON.parse(data.circleConfig);
+                            localStorage.setItem('circlePositions', data.circleConfig);
+                            renderPreviewCircles();
+                        }
+                        if (data.threshold !== undefined) {
+                            const t = data.threshold;
+                            document.getElementById('threshold-slider').value = t;
+                            document.getElementById('settings-threshold-slider').value = t;
+                            document.getElementById('threshold-val').innerText = t;
+                            document.getElementById('settings-threshold-val').innerText = t;
+                            localStorage.setItem('threshold', t);
+                        }
+                        if (data.debugPanelEnabled !== undefined) {
+                            document.getElementById('debug-mode-toggle').checked = data.debugPanelEnabled;
+                            localStorage.setItem('debug-mode', data.debugPanelEnabled);
+                            updateDebugPanelVisibility();
+                        }
+                    }
+                });
+                activeDbListeners.push(unsubSettings);
+
+            } catch (e) {
+                console.error("Firebase init error:", e);
+                updateFirebaseStatus('error', 'Firebase: ' + e.message);
+            }
+        }
+
+        function updateFirebaseStatus(status, text) {
+            const dot = document.getElementById('fb-status-dot');
+            const textEl = document.getElementById('fb-status-text');
+            const bar = document.getElementById('fb-status-bar');
+            if (!dot || !textEl || !bar) return;
+            textEl.innerText = text;
+            if (status === 'connected') { dot.style.background = 'var(--success)'; bar.style.borderLeftColor = 'var(--success)'; }
+            else if (status === 'connecting') { dot.style.background = 'var(--accent)'; bar.style.borderLeftColor = 'var(--accent)'; }
+            else if (status === 'error') { dot.style.background = 'var(--error)'; bar.style.borderLeftColor = 'var(--error)'; }
+            else { dot.style.background = '#666'; bar.style.borderLeftColor = '#666'; }
+        }
+
+        async function saveFirebaseConfig() {
+            const apiKey = document.getElementById('fb-apiKey').value.trim();
+            const authDomain = document.getElementById('fb-authDomain').value.trim();
+            const projectId = document.getElementById('fb-projectId').value.trim();
+            const storageBucket = document.getElementById('fb-storageBucket').value.trim();
+            const appId = document.getElementById('fb-appId').value.trim();
+            let databaseId = (document.getElementById('fb-databaseId')?.value || '').trim();
+            if (!databaseId) databaseId = (projectId === 'gen-lang-client-0408655533') ? 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759' : '(default)';
+            if (projectId !== 'gen-lang-client-0408655533' && databaseId === 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759') databaseId = '(default)';
+            if (!apiKey || !projectId) { alert("API Key and Project ID are required."); return; }
+            localStorage.setItem('fb-apiKey', apiKey);
+            localStorage.setItem('fb-authDomain', authDomain);
+            localStorage.setItem('fb-projectId', projectId);
+            localStorage.setItem('fb-storageBucket', storageBucket);
+            localStorage.setItem('fb-appId', appId);
+            localStorage.setItem('fb-databaseId', databaseId);
+            updateFirebaseStatus('connecting', 'Firebase: Testing Connection...');
+            try {
+                if (firebase.apps.length > 0) await Promise.all(firebase.apps.map(app => app.delete()));
+                firebaseApp = firebase.initializeApp({ apiKey, authDomain, projectId, storageBucket, appId });
+                if (firebase.auth) {
+                    try { if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously(); } catch (e) {}
+                }
+                db = getFirestoreInstance(firebaseApp, databaseId);
+                storage = firebaseApp.storage();
+                await db.collection('dictionary').limit(1).get();
+                updateFirebaseStatus('connected', 'Firebase: Connected Successfully!');
+                alert("Firebase connected successfully!");
+                location.reload();
+            } catch (e) {
+                updateFirebaseStatus('error', 'Firebase: Connection Failed');
+                alert("Firebase connection failed: " + e.message);
+            }
+        }
+
+        function exportFirebaseConfig() {
+            const apiKey = (document.getElementById('fb-apiKey')?.value || '').trim() || localStorage.getItem('fb-apiKey') || '';
+            const authDomain = (document.getElementById('fb-authDomain')?.value || '').trim() || localStorage.getItem('fb-authDomain') || '';
+            const projectId = (document.getElementById('fb-projectId')?.value || '').trim() || localStorage.getItem('fb-projectId') || '';
+            const storageBucket = (document.getElementById('fb-storageBucket')?.value || '').trim() || localStorage.getItem('fb-storageBucket') || '';
+            const appId = (document.getElementById('fb-appId')?.value || '').trim() || localStorage.getItem('fb-appId') || '';
+            let firestoreDatabaseId = (document.getElementById('fb-databaseId')?.value || '').trim() || localStorage.getItem('fb-databaseId') || '';
+            if (!firestoreDatabaseId) firestoreDatabaseId = (projectId === 'gen-lang-client-0408655533') ? 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759' : '(default)';
+            if (!apiKey && !projectId) { if (!confirm("Firebase config fields are currently empty. Export empty template?")) return; }
+            const exportData = { apiKey, authDomain, projectId, storageBucket, appId, firestoreDatabaseId, exportedAt: new Date().toISOString() };
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `firebase-config-${projectId || 'app'}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            showToast("Firebase configuration exported!", "success");
+        }
+
+        async function importFirebaseConfig(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                const cfg = json.firebaseConfig || json.firebase || json;
+                const apiKey = (cfg.apiKey || '').trim();
+                const authDomain = (cfg.authDomain || '').trim();
+                const projectId = (cfg.projectId || '').trim();
+                const storageBucket = (cfg.storageBucket || '').trim();
+                const appId = (cfg.appId || '').trim();
+                let firestoreDatabaseId = (cfg.firestoreDatabaseId || cfg.databaseId || cfg.firestoreDbId || '').trim();
+                if (!apiKey && !projectId) throw new Error("Invalid configuration file.");
+                if (!firestoreDatabaseId) firestoreDatabaseId = (projectId === 'gen-lang-client-0408655533') ? 'ai-studio-48f55087-ae5a-4ab3-b4c4-0a15286e9759' : '(default)';
+                const fields = { 'fb-apiKey': apiKey, 'fb-authDomain': authDomain, 'fb-projectId': projectId, 'fb-storageBucket': storageBucket, 'fb-appId': appId, 'fb-databaseId': firestoreDatabaseId };
+                Object.entries(fields).forEach(([id, val]) => { const el = document.getElementById(id); if (el) el.value = val; localStorage.setItem(id, val); });
+                showToast("Firebase configuration imported!", "success");
+                if (confirm("Firebase configuration imported successfully! Connect to Firebase now?")) await saveFirebaseConfig();
+            } catch (err) {
+                alert("Failed to import Firebase config: " + err.message);
+            } finally { event.target.value = ''; }
+        }
+
+        async function clearAllFirebaseFields() {
+            if (!confirm("Are you sure you want to clear all Firebase configuration fields and disconnect?")) return;
+            ['fb-apiKey','fb-authDomain','fb-projectId','fb-storageBucket','fb-appId','fb-databaseId'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.value = '';
+                localStorage.removeItem(id);
+            });
+            clearActiveDbListeners();
+            try { if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) await Promise.all(firebase.apps.map(app => app.delete())); } catch (e) {}
+            db = null; storage = null; firebaseApp = null;
+            dictionary = []; localStorage.removeItem('dictionary_cache');
+            renderDictionary();
+            updateFirebaseStatus('disconnected', 'Firebase: Disconnected (Fields Cleared)');
+            showToast("All Firebase fields cleared and disconnected", "info");
+            alert("All Firebase fields have been cleared and the database has been disconnected.");
+        }
+
+        async function disconnectDatabase() {
+            if (!confirm("Are you sure you want to disconnect from the database?")) return;
+            clearActiveDbListeners();
+            try { if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) await Promise.all(firebase.apps.map(app => app.delete())); } catch (e) {}
+            db = null; storage = null; firebaseApp = null;
+            dictionary = []; localStorage.removeItem('dictionary_cache');
+            renderDictionary();
+            updateFirebaseStatus('disconnected', 'Firebase: Disconnected');
+            showToast("Database disconnected.", "info");
+            alert("Database disconnected successfully.");
+        }
+
+        async function addGeminiKey() {
+            const keyInput = document.getElementById('new-gemini-key');
+            const newKey = keyInput.value.trim();
+            if (!newKey) return;
+            if (!db) return alert("Firebase not connected.");
+            const toast = showToast("Adding key...", "syncing", 0);
+            try {
+                const updatedKeys = [...geminiKeys, newKey];
+                await db.collection('config').doc('geminiKeys').set({ keys: updatedKeys });
+                toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300);
+                showToast("Key added to Firebase", "success");
+                keyInput.value = "";
+            } catch (e) { toast.remove(); showToast("Failed to add key", "error"); }
+        }
+
+        async function removeGeminiKey(index) {
+            if (!confirm("Remove this API key?")) return;
+            const toast = showToast("Removing key...", "syncing", 0);
+            try {
+                const updatedKeys = geminiKeys.filter((_, i) => i !== index);
+                await db.collection('config').doc('geminiKeys').set({ keys: updatedKeys });
+                toast.classList.add('fade-out'); setTimeout(() => toast.remove(), 300);
+                showToast("Key removed from Firebase", "success");
+            } catch (e) { toast.remove(); showToast("Failed to remove key", "error"); }
+        }
+
+        function renderGeminiKeys() {
+            const list = document.getElementById('gemini-key-list');
+            if (!list) return;
+            list.innerHTML = "";
+            geminiKeys.forEach((key, i) => {
+                const div = document.createElement('div');
+                div.style = "display:flex; justify-content:space-between; align-items:center; background:#2c2c2c; padding:8px; border-radius:4px; margin-bottom:4px";
+                div.innerHTML = `<span style="font-family:monospace; font-size:12px">${key.substring(0, 6)}...${key.substring(key.length - 4)}</span>
+                    <button class="btn btn-danger" style="width:auto; padding:4px 8px; margin-bottom:0; font-size:12px" onclick="removeGeminiKey(${i})">Remove</button>`;
+                list.appendChild(div);
+            });
+        }
+
+        async function handleScreenshot(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (event) => {
+                currentScreenshot = event.target.result;
+                const previewImg = document.getElementById('screenshot-preview');
+                previewImg.onload = () => renderPreviewCircles();
+                previewImg.src = currentScreenshot;
+                document.getElementById('screenshot-preview-container').classList.remove('hidden');
+                document.getElementById('solve-btn').disabled = false;
+                saveToStorage(currentScreenshot);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleResultInput(e) {
+            const el = e.target;
+            const text = el.innerText.replace(/\s/g, '');
+            const digits = text.match(/[0-4]/g) || [];
+            const statusLabel = document.querySelector('.status-label');
+            if (!statusLabel) return;
+            const digitsOnly = digits.filter(n => n !== '0');
+            const hasDuplicates = new Set(digitsOnly).size !== digitsOnly.length;
+            const isComplete = digits.length === 3 && digits.every(n => n !== '0') && !hasDuplicates;
+            if (hasDuplicates) { statusLabel.innerText = "INVALID"; statusLabel.style.color = "#ffb74d"; }
+            else if (isComplete) { statusLabel.innerText = "COMPLETE"; statusLabel.style.color = "var(--success)"; }
+            else { statusLabel.innerText = "INCOMPLETE"; statusLabel.style.color = "var(--text-secondary)"; }
+        }
+
+        function formatResultNumbers() {
+            const el = document.getElementById('result-numbers');
+            if (!el) return;
+            const text = el.innerText.replace(/\s/g, '');
+            const rawDigits = text.match(/[0-4]/g) || [];
+            const final = [];
+            for (let i = 0; i < 3; i++) final.push(rawDigits[i] || '0');
+            el.innerText = final.join('');
+            const statusLabel = document.querySelector('.status-label');
+            const digitsOnly = final.filter(n => n !== '0');
+            const seen = new Set(digitsOnly);
+            const hasDuplicates = seen.size !== digitsOnly.length;
+            const isComplete = final.every(n => n !== '0') && !hasDuplicates;
+            if (statusLabel) {
+                if (hasDuplicates) { statusLabel.innerText = "INVALID"; statusLabel.style.color = "#ffb74d"; }
+                else if (isComplete) { statusLabel.innerText = "COMPLETE"; statusLabel.style.color = "var(--success)"; }
+                else { statusLabel.innerText = "INCOMPLETE"; statusLabel.style.color = "var(--text-secondary)"; }
+            }
+        }
+
+        async function runPipeline() {
+            const startTime = performance.now();
+            const solveBtn = document.getElementById('solve-btn');
+            solveBtn.disabled = true;
+            solveBtn.innerText = "PROCESSING...";
+
+            const resultsContainer = document.getElementById('solver-results');
+            const resultNumbers = document.getElementById('result-numbers');
+            const matchSource = document.getElementById('match-source');
+            const solveTime = document.getElementById('solve-time');
+            const detectedCropsEl = document.getElementById('detected-crops');
+            const debugContent = document.getElementById('debug-content');
+
+            resultsContainer.classList.remove('hidden');
+            resultNumbers.innerText = "...";
+            matchSource.innerText = "Detecting targets...";
+            solveTime.innerText = "";
+            detectedCropsEl.innerHTML = "";
+            debugContent.innerHTML = "";
+
+            try {
+                const img = await loadImage(currentScreenshot);
+                const crops = await cropManualCircles(img);
+                const targets = crops.filter(c => c.type === 'target');
+                const answers = crops.filter(c => c.type === 'answer');
+
+                renderCrops(targets, answers);
+
+                if (targets.length === 0) {
+                    resultNumbers.innerText = "000";
+                    matchSource.innerText = "No targets detected in top row.";
+                    return;
+                }
+
+                matchSource.innerText = "Matching with dictionary...";
+                const threshold = parseInt(document.getElementById('threshold-slider').value);
+                const results = [];
+
+                let debugHTML = `<div style="padding:8px; background:rgba(0,0,0,0.5); border-radius:4px; margin-bottom:8px; font-size:10px">
+                    [PIPELINE START] Threshold: ${threshold}% | Dict Size: ${dictionary.length}
+                </div>`;
+
+                for (let i = 0; i < targets.length; i++) {
+                    const target = targets[i];
+                    target.hash = await computePHash(target.data);
+
+                    let bestMatch = null;
+                    let maxSim = 0;
+                    let allSims = [];
+
+                    for (let entry of dictionary) {
+                        const sim = compareHashes(target.hash, entry.targetHash);
+                        allSims.push({ name: entry.name, sim, hash: entry.targetHash, image: entry.targetImage });
+                        if (sim > maxSim) { maxSim = sim; bestMatch = entry; }
+                    }
+
+                    allSims.sort((a, b) => b.sim - a.sim);
+                    const topSims = allSims.slice(0, 3);
+
+                    debugHTML += `<div style="border-bottom:1px solid #333; padding-bottom:8px; margin-bottom:8px;">
+                        <div style="font-weight:bold; color:var(--accent)">Target ${i+1} — Best: ${bestMatch ? bestMatch.name : 'None'} (${maxSim.toFixed(1)}%)</div>
+                        <div style="font-size:9px; color:#888">Top 3: ${topSims.map(s => s.name + ' ' + s.sim.toFixed(0) + '%').join(' | ')}</div>
+                    </div>`;
+
+                    if (maxSim >= threshold && bestMatch) {
+                        // ── FIXED: score answers against ANSWER POOL only, not target hash ──
+                        const answerHashes = [];
+                        for (let aIdx = 0; aIdx < answers.length; aIdx++) {
+                            answerHashes.push(await computePHash(answers[aIdx].data));
+                        }
+
+                        const answerScores = new Array(answers.length).fill(0);
+
+                        if (bestMatch.answers && bestMatch.answers.length > 0) {
+                            for (let knownAns of bestMatch.answers) {
+                                const knownHash = typeof knownAns === 'string' ? knownAns : (knownAns.hash || "");
+                                if (!knownHash) continue;
+                                for (let aIdx = 0; aIdx < answers.length; aIdx++) {
+                                    const sim = compareHashes(answerHashes[aIdx], knownHash);
+                                    answerScores[aIdx] = Math.max(answerScores[aIdx], sim);
+                                }
+                            }
+                        }
+
+                        // Secondary signal: compare against target hash at reduced weight
+                        for (let aIdx = 0; aIdx < answers.length; aIdx++) {
+                            const simToTarget = compareHashes(answerHashes[aIdx], bestMatch.targetHash);
+                            answerScores[aIdx] = Math.max(answerScores[aIdx], simToTarget * 0.85);
+                        }
+
+                        let bestAnsIdx = -1;
+                        let maxAnsSim = 0;
+                        for (let aIdx = 0; aIdx < answers.length; aIdx++) {
+                            if (answerScores[aIdx] > maxAnsSim) {
+                                maxAnsSim = answerScores[aIdx];
+                                bestAnsIdx = aIdx + 1;
+                            }
+                        }
+
+                        debugHTML += `<div style="font-size:9px; color:#888; margin-top:-6px; margin-bottom:8px;">Answer scores: [${answerScores.map(s => s.toFixed(0)).join(', ')}]</div>`;
+
+                        // Always push — let Gemini resolve low-confidence
+                        results.push({
+                            targetIndex: i,
+                            answerIndex: maxAnsSim >= threshold ? bestAnsIdx : null,
+                            answerScores,
+                            confidence: maxAnsSim,
+                            source: maxAnsSim >= threshold ? 'dictionary' : 'gemini',
+                            entry: bestMatch,
+                            lowConfidence: maxAnsSim < threshold,
+                            reason: maxAnsSim < threshold ? `Low answer confidence (${maxAnsSim.toFixed(0)}%)` : null
+                        });
+                    } else {
+                        results.push({
+                            targetIndex: i,
+                            answerIndex: null,
+                            answerScores: null,
+                            confidence: maxSim,
+                            source: 'gemini',
+                            entry: bestMatch,
+                            lowConfidence: true,
+                            reason: 'Target not matched'
+                        });
+                    }
+                }
+
+                debugContent.innerHTML = debugHTML;
+
+                // ── FIXED: hybrid resolution with proper collision handling ──
+                const lockedResults = results.filter(r => r.source === 'dictionary' && r.answerIndex);
+                const allSolvedByDict = results.length === targets.length &&
+                    results.every(r => r.source === 'dictionary' && r.answerIndex);
+                const lockedAnswerSet = new Set(lockedResults.map(r => r.answerIndex));
+                const noDuplicateLocks = lockedAnswerSet.size === lockedResults.length;
+                const allLocked = lockedResults.length === targets.length;
+
+                if (allSolvedByDict && noDuplicateLocks && allLocked) {
+                    matchSource.innerText = "Solved via Dictionary (pHash)";
+                    resultNumbers.innerText = results.map(r => r.answerIndex).join("");
+                    formatResultNumbers();
+                } else {
+                    matchSource.innerText = "Calling Gemini...";
+                    const matchedEntries = results.filter(r => r.entry);
+
+                    const geminiResult = await callGeminiForPuzzle(
+                        currentScreenshot, targets, answers, results, lockedResults
+                    );
+                    const geminiDigits = geminiResult.replace(/\s/g, '').split('');
+
+                    const usedAnswers = new Set(lockedResults.map(r => r.answerIndex));
+                    const finalDigits = [];
+
+                    for (let i = 0; i < targets.length; i++) {
+                        const locked = lockedResults.find(r => r.targetIndex === i);
+                        if (locked) {
+                            finalDigits.push(String(locked.answerIndex));
+                            continue;
+                        }
+
+                        const geminiPick = parseInt(geminiDigits[i]);
+                        if (geminiPick >= 1 && geminiPick <= 4 && !usedAnswers.has(geminiPick)) {
+                            finalDigits.push(String(geminiPick));
+                            usedAnswers.add(geminiPick);
+                        } else {
+                            // Gemini collision — use pHash scores as tiebreaker
+                            const result = results[i];
+                            const remaining = [1, 2, 3, 4].filter(n => !usedAnswers.has(n));
+                            if (remaining.length > 0) {
+                                let best = remaining[0];
+                                if (result.answerScores) {
+                                    best = remaining.reduce((a, b) =>
+                                        (result.answerScores[a - 1] || 0) > (result.answerScores[b - 1] || 0) ? a : b
+                                    );
+                                }
+                                finalDigits.push(String(best));
+                                usedAnswers.add(best);
+                            } else {
+                                finalDigits.push('0');
+                            }
+                        }
+                    }
+
+                    resultNumbers.innerText = finalDigits.join("");
+                    formatResultNumbers();
+
+                    const lockedCount = lockedResults.length;
+                    matchSource.innerText = lockedCount > 0
+                        ? `Hybrid (${lockedCount} pHash locked + Gemini)`
+                        : "Solved via Gemini";
+                }
+
+                const totalSeconds = (performance.now() - startTime) / 1000;
+                const mins = Math.floor(totalSeconds / 60);
+                const secs = (totalSeconds % 60).toFixed(1);
+                document.getElementById('solve-time').innerText = `Time: ${mins}m ${secs}s`;
+
+            } catch (err) {
+                console.error("Pipeline error:", err);
+                matchSource.innerText = "Error: " + err.message;
+                resultNumbers.innerText = "000";
+            } finally {
+                solveBtn.disabled = false;
+                solveBtn.innerText = "SOLVE";
+            }
+        }
+
+        async function cropFromPositions(img, positions, type) {
+            const crops = [];
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            for (let i = 0; i < positions.length; i++) {
+                const pos = positions[i];
+                const targetSize = 200;
+                canvas.width = targetSize; canvas.height = targetSize;
+                ctx.clearRect(0, 0, targetSize, targetSize);
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(targetSize/2, targetSize/2, targetSize/2, 0, Math.PI * 2);
+                ctx.clip();
+                ctx.drawImage(img, pos.x - pos.radius, pos.y - pos.radius, pos.radius * 2, pos.radius * 2, 0, 0, targetSize, targetSize);
+                ctx.restore();
+                crops.push({ id: (type === 'target' ? 'T' : 'A') + (i + 1), type, data: canvas.toDataURL('image/png'), x: Math.round(pos.x), y: Math.round(pos.y), radius: pos.radius });
+            }
+            return crops;
+        }
+
+        async function cropManualCircles(img) {
+            const targetCrops = await cropFromPositions(img, circleConfig.targets, 'target');
+            const answerCrops = await cropFromPositions(img, circleConfig.answers, 'answer');
+            return [...targetCrops, ...answerCrops];
+        }
+
+        function renderPreviewCircles() {
+            const container = document.getElementById('preview-circles-layer');
+            const img = document.getElementById('screenshot-preview');
+            if (!container || !img || !currentScreenshot) return;
+            container.innerHTML = "";
+            const rect = img.getBoundingClientRect();
+            if (rect.width === 0 || img.naturalWidth === 0) return;
+            const scaleX = rect.width / img.naturalWidth;
+            const scaleY = rect.height / img.naturalHeight;
+            [...circleConfig.targets.map(t => ({...t, type: 'target'})),
+             ...circleConfig.answers.map(a => ({...a, type: 'answer'}))].forEach(m => {
+                const circle = document.createElement('div');
+                circle.className = `preview-circle ${m.type}`;
+                circle.style.width = (m.radius * 2 * scaleX) + 'px';
+                circle.style.height = (m.radius * 2 * scaleY) + 'px';
+                circle.style.left = (m.x * scaleX) + 'px';
+                circle.style.top = (m.y * scaleY) + 'px';
+                container.appendChild(circle);
+            });
+        }
+
+        // Circle Setup
+        let activeMarker = null;
+        let isDragging = false;
+        let dragStartX, dragStartY;
+        let markerStartX, markerStartY;
+        let activeMarkerType = null;
+        let activeMarkerIndex = null;
+
+        function handleSetupUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = document.getElementById('setup-img');
+                const placeholder = document.getElementById('setup-placeholder');
+                img.src = event.target.result;
+                img.style.display = 'block';
+                placeholder.style.display = 'none';
+                img.onload = () => renderSetupMarkers();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function openCircleSetup() {
+            document.getElementById('setup-overlay').style.display = 'flex';
+            const tRad = circleConfig.targets[0].radius;
+            const aRad = circleConfig.answers[0].radius;
+            document.getElementById('target-radius-slider').value = tRad;
+            document.getElementById('target-radius-val').innerText = tRad;
+            document.getElementById('answer-radius-slider').value = aRad;
+            document.getElementById('answer-radius-val').innerText = aRad;
+            renderSetupMarkers();
+        }
+
+        function renderSetupMarkers() {
+            const container = document.getElementById('setup-canvas-container');
+            const img = document.getElementById('setup-img');
+            container.querySelectorAll('.setup-marker').forEach(m => m.remove());
+            if (!img.src || img.style.display === 'none') return;
+            const rect = img.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const scaleX = rect.width / img.naturalWidth;
+            const scaleY = rect.height / img.naturalHeight;
+            const offsetX = rect.left - containerRect.left;
+            const offsetY = rect.top - containerRect.top;
+            const allMarkers = [
+                ...circleConfig.targets.map((m, i) => ({ ...m, id: 'T' + (i + 1), type: 'target', index: i })),
+                ...circleConfig.answers.map((m, i) => ({ ...m, id: 'A' + (i + 1), type: 'answer', index: i }))
+            ];
+            allMarkers.forEach(m => {
+                const marker = document.createElement('div');
+                marker.className = `setup-marker ${m.type} ${activeMarker === m.id ? 'active' : ''}`;
+                const size = (m.radius * 2 * scaleX) + 'px';
+                marker.style.width = size; marker.style.height = size;
+                marker.style.left = (m.x * scaleX + offsetX) + 'px';
+                marker.style.top = (m.y * scaleY + offsetY) + 'px';
+                marker.innerHTML = `<div class="marker-label">${m.id}</div>`;
+                marker.onmousedown = (e) => startDraggingMarker(e, m.id, m.type, m.index);
+                marker.ontouchstart = (e) => startDraggingMarker(e, m.id, m.type, m.index);
+                container.appendChild(marker);
+            });
+        }
+
+        function formatCoord(num) {
+            if (num === undefined || num === null || isNaN(num)) return 0;
+            return Number(Number(num).toFixed(2));
+        }
+
+        function startDraggingMarker(e, id, type, index) {
+            e.preventDefault();
+            activeMarker = id; activeMarkerType = type; activeMarkerIndex = index;
+            isDragging = true;
+            const clientX = e.type.startsWith('touch') ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type.startsWith('touch') ? e.touches[0].clientY : e.clientY;
+            dragStartX = clientX; dragStartY = clientY;
+            const marker = circleConfig[type + 's'][index];
+            markerStartX = marker.x; markerStartY = marker.y;
+            document.getElementById('manual-setup-panel').classList.remove('hidden');
+            document.getElementById('active-marker-select').value = id;
+            document.getElementById('manual-x').value = formatCoord(marker.x);
+            document.getElementById('manual-y').value = formatCoord(marker.y);
+            document.getElementById('manual-radius').value = formatCoord(marker.radius);
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        function selectMarkerFromDropdown() {
+            const id = document.getElementById('active-marker-select').value;
+            if (!id) { activeMarker = null; document.getElementById('manual-setup-panel').classList.add('hidden'); renderSetupMarkers(); return; }
+            const type = id.startsWith('T') ? 'target' : 'answer';
+            const index = parseInt(id.substring(1)) - 1;
+            activeMarker = id; activeMarkerType = type; activeMarkerIndex = index;
+            const marker = circleConfig[type + 's'][index];
+            document.getElementById('manual-setup-panel').classList.remove('hidden');
+            document.getElementById('manual-x').value = formatCoord(marker.x);
+            document.getElementById('manual-y').value = formatCoord(marker.y);
+            document.getElementById('manual-radius').value = formatCoord(marker.radius);
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        async function updateSetupCropPreview() {
+            if (!activeMarker) return;
+            const marker = circleConfig[activeMarkerType + 's'][activeMarkerIndex];
+            const img = document.getElementById('setup-img');
+            if (!img.src) return;
+            const crops = await cropFromPositions(img, [marker], activeMarkerType);
+            if (crops && crops.length > 0) document.getElementById('setup-crop-preview').src = crops[0].data;
+        }
+
+        function clampMarker(marker) {
+            const img = document.getElementById('setup-img');
+            if (!img || !img.naturalWidth) return;
+            const r = marker.radius;
+            marker.x = Math.max(r, Math.min(img.naturalWidth - r, marker.x));
+            marker.y = Math.max(r, Math.min(img.naturalHeight - r, marker.y));
+        }
+
+        function moveMarker(dx, dy) {
+            if (!activeMarker) return;
+            const step = parseFloat(document.getElementById('manual-step').value) || 1;
+            const marker = circleConfig[activeMarkerType + 's'][activeMarkerIndex];
+            marker.x = formatCoord(marker.x + dx * step);
+            marker.y = formatCoord(marker.y + dy * step);
+            clampMarker(marker);
+            document.getElementById('manual-x').value = formatCoord(marker.x);
+            document.getElementById('manual-y').value = formatCoord(marker.y);
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        function handleDragging(e) {
+            if (!isDragging || !activeMarker) return;
+            if (e.type === 'touchmove') e.preventDefault();
+            const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+            const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+            const img = document.getElementById('setup-img');
+            const rect = img.getBoundingClientRect();
+            const scaleX = rect.width / img.naturalWidth;
+            const scaleY = rect.height / img.naturalHeight;
+            const dx = (clientX - dragStartX) / scaleX;
+            const dy = (clientY - dragStartY) / scaleY;
+            const marker = circleConfig[activeMarkerType + 's'][activeMarkerIndex];
+            marker.x = formatCoord(markerStartX + dx);
+            marker.y = formatCoord(markerStartY + dy);
+            clampMarker(marker);
+            document.getElementById('manual-x').value = formatCoord(marker.x);
+            document.getElementById('manual-y').value = formatCoord(marker.y);
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        function stopDragging() {
+            isDragging = false;
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        function updateManualMarker() {
+            if (!activeMarker) return;
+            const marker = circleConfig[activeMarkerType + 's'][activeMarkerIndex];
+            marker.x = parseFloat(document.getElementById('manual-x').value) || 0;
+            marker.y = parseFloat(document.getElementById('manual-y').value) || 0;
+            marker.radius = parseFloat(document.getElementById('manual-radius').value) || 10;
+            clampMarker(marker);
+            document.getElementById('manual-x').value = formatCoord(marker.x);
+            document.getElementById('manual-y').value = formatCoord(marker.y);
+            renderSetupMarkers();
+            updateSetupCropPreview();
+        }
+
+        function updateSetupRadius() {
+            const tRad = parseInt(document.getElementById('target-radius-slider').value);
+            const aRad = parseInt(document.getElementById('answer-radius-slider').value);
+            circleConfig.targets.forEach(t => { t.radius = tRad; clampMarker(t); });
+            circleConfig.answers.forEach(a => { a.radius = aRad; clampMarker(a); });
+            if (activeMarker) {
+                const marker = circleConfig[activeMarkerType + 's'][activeMarkerIndex];
+                document.getElementById('manual-x').value = Math.round(marker.x);
+                document.getElementById('manual-y').value = Math.round(marker.y);
+                document.getElementById('manual-radius').value = Math.round(marker.radius);
+            }
+            document.getElementById('target-radius-val').innerText = tRad;
+            document.getElementById('answer-radius-val').innerText = aRad;
+            renderSetupMarkers();
+        }
+
+        function adjustRadius(type, delta) {
+            const slider = document.getElementById(type === 'targets' ? 'target-radius-slider' : 'answer-radius-slider');
+            slider.value = parseInt(slider.value) + delta;
+            updateSetupRadius();
+        }
+
+        async function saveCircleSetup() {
+            localStorage.setItem('circlePositions', JSON.stringify(circleConfig));
+            alert("Positions saved!");
+            closeCircleSetup();
+            await syncSettingsToFirebase();
+        }
+
+        async function resetCircleSetup() {
+            if (!confirm("Reset all positions to defaults?")) return;
+            circleConfig = JSON.parse(JSON.stringify(DEFAULT_CIRCLE_CONFIG));
+            localStorage.setItem('circlePositions', JSON.stringify(circleConfig));
+            if (document.getElementById('setup-overlay').style.display === 'flex') openCircleSetup();
+            else renderPreviewCircles();
+            await syncSettingsToFirebase();
+            alert("Positions reset to defaults!");
+        }
+
+        function closeCircleSetup() {
+            document.getElementById('setup-overlay').style.display = 'none';
+            activeMarker = null;
+            document.getElementById('active-marker-select').value = "";
+            document.getElementById('manual-setup-panel').classList.add('hidden');
+            renderPreviewCircles();
+        }
+
+        function exportCircleConfig() {
+            const dataToExport = {
+                format: "monster-quiz-circle-config", version: 1, exportedAt: new Date().toISOString(),
+                circleConfig: {
+                    targets: circleConfig.targets.map((t, i) => ({ id: t.id || `T${i+1}`, x: Number(t.x), y: Number(t.y), radius: Number(t.radius) })),
+                    answers: circleConfig.answers.map((a, i) => ({ id: a.id || `A${i+1}`, x: Number(a.x), y: Number(a.y), radius: Number(a.radius) }))
+                }
+            };
+            const blob = new Blob([JSON.stringify(dataToExport, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = `circle-positions-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+            showToast("Circle configuration exported!", "success");
+        }
+
+        async function importCircleConfig(event) {
+            const file = event.target.files && event.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const json = JSON.parse(text);
+                let targets = null, answers = null;
+                if (json.circleConfig && Array.isArray(json.circleConfig.targets) && Array.isArray(json.circleConfig.answers)) {
+                    targets = json.circleConfig.targets; answers = json.circleConfig.answers;
+                } else if (Array.isArray(json.targets) && Array.isArray(json.answers)) {
+                    targets = json.targets; answers = json.answers;
+                } else throw new Error("Invalid circle configuration format.");
+                if (targets.length === 0 || answers.length === 0) throw new Error("Targets or answers list is empty.");
+                const parsedTargets = targets.map((t, i) => {
+                    const x = Number(t.x), y = Number(t.y), radius = Number(t.radius !== undefined ? t.radius : 48);
+                    if (isNaN(x) || isNaN(y) || isNaN(radius)) throw new Error(`Target ${t.id || (i+1)} has invalid coordinates.`);
+                    return { id: t.id || `T${i+1}`, x, y, radius };
+                });
+                const parsedAnswers = answers.map((a, i) => {
+                    const x = Number(a.x), y = Number(a.y), radius = Number(a.radius !== undefined ? a.radius : 48);
+                    if (isNaN(x) || isNaN(y) || isNaN(radius)) throw new Error(`Answer ${a.id || (i+1)} has invalid coordinates.`);
+                    return { id: a.id || `A${i+1}`, x, y, radius };
+                });
+                circleConfig = { targets: parsedTargets, answers: parsedAnswers };
+                localStorage.setItem('circlePositions', JSON.stringify(circleConfig));
+                const tRad = circleConfig.targets[0]?.radius || 48;
+                const aRad = circleConfig.answers[0]?.radius || 48;
+                ['target', 'answer'].forEach((type, idx) => {
+                    const rad = idx === 0 ? tRad : aRad;
+                    const slider = document.getElementById(`${type}-radius-slider`);
+                    const val = document.getElementById(`${type}-radius-val`);
+                    if (slider) slider.value = rad;
+                    if (val) val.innerText = rad;
+                });
+                if (document.getElementById('setup-overlay') && document.getElementById('setup-overlay').style.display === 'flex') {
+                    renderSetupMarkers();
+                    updateSetupCropPreview();
+                }
+                renderPreviewCircles();
+                renderDictPreview();
+                if (typeof syncSettingsToFirebase === 'function') await syncSettingsToFirebase();
+                showToast("Circle positions imported successfully!", "success");
+                alert(`Circle positions imported!\nTargets: ${parsedTargets.length} | Answers: ${parsedAnswers.length}`);
+            } catch (err) {
+                alert("Failed to import circle config: " + err.message);
+                showToast("Import failed: " + err.message, "error");
+            } finally { event.target.value = ''; }
+        }
+
+        async function computePHash(dataUrl) {
+            const img = await loadImage(dataUrl);
+            const canvas = document.createElement('canvas');
+            canvas.width = 32; canvas.height = 32;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, 32, 32);
+            const imageData = ctx.getImageData(0, 0, 32, 32);
+            const gray = new Float32Array(32 * 32);
+            for (let i = 0; i < 1024; i++) {
+                gray[i] = 0.299 * imageData.data[i*4] + 0.587 * imageData.data[i*4+1] + 0.114 * imageData.data[i*4+2];
+            }
+            const dct = applyDCT(gray, 32);
+            const block = [];
+            for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) { if (x === 0 && y === 0) continue; block.push(dct[y * 32 + x]); }
+            const mean = block.reduce((a, b) => a + b, 0) / block.length;
+            let hash = "";
+            for (let val of block) hash += val > mean ? "1" : "0";
+            return hash;
+        }
+
+        function applyDCT(data, size) {
+            const result = new Float32Array(size * size);
+            const c = new Float32Array(size);
+            for (let i = 1; i < size; i++) c[i] = 1;
+            c[0] = 1 / Math.sqrt(2);
+            for (let u = 0; u < size; u++) {
+                for (let v = 0; v < size; v++) {
+                    let sum = 0;
+                    for (let x = 0; x < size; x++) for (let y = 0; y < size; y++) {
+                        sum += data[y * size + x] * Math.cos(((2*x+1)*u*Math.PI)/(2*size)) * Math.cos(((2*y+1)*v*Math.PI)/(2*size));
+                    }
+                    result[v * size + u] = 0.25 * c[u] * c[v] * sum;
+                }
+            }
+            return result;
+        }
+
+        function compareHashes(h1, h2) {
+            if (!h1 || !h2 || h1.length !== h2.length) return 0;
+            let distance = 0;
+            for (let i = 0; i < h1.length; i++) if (h1[i] !== h2[i]) distance++;
+            return (1 - distance / h1.length) * 100;
+        }
+
+        async function callGeminiForPuzzle(screenshot, targets, answers, pHashResults, lockedResults = []) {
+            const debugContent = document.getElementById('debug-content');
+            let availableKeys = [...geminiKeys];
+            const envKey = (typeof process !== 'undefined' && process.env && process.env.GEMINI_API_KEY) ? process.env.GEMINI_API_KEY : '';
+            if (availableKeys.length === 0 && envKey) availableKeys.push(envKey);
+            if (availableKeys.length === 0) throw new Error("No Gemini API keys available in pool.");
+
+            const contents = { parts: [] };
+
+            targets.forEach((target, i) => {
+                contents.parts.push({ text: `TARGET ${i + 1}:` });
+                contents.parts.push({ inlineData: { mimeType: "image/png", data: target.data.split(',')[1] } });
+            });
+
+            answers.forEach((ans, i) => {
+                contents.parts.push({ text: `ANSWER CHOICE ${i + 1}:` });
+                contents.parts.push({ inlineData: { mimeType: "image/png", data: ans.data.split(',')[1] } });
+            });
+
+            contents.parts.push({ text: `FULL SCREENSHOT FOR CONTEXT:` });
+            contents.parts.push({ inlineData: { mimeType: "image/png", data: screenshot.split(',')[1] } });
+
+            let lockInstructions = "";
+            if (lockedResults.length > 0) {
+                contents.parts.push({ text: `LOCKED ANSWERS (High-Confidence pHash Matches):` });
+                lockedResults.forEach(res => {
+                    const instr = `Target ${res.targetIndex + 1} is LOCKED to Answer Choice ${res.answerIndex}. DO NOT CHANGE THIS.`;
+                    contents.parts.push({ text: instr });
+                    lockInstructions += `Target ${res.targetIndex + 1} = Answer ${res.answerIndex} (LOCKED)\n`;
+                });
+            }
+
+            const matchedEntries = pHashResults.filter(r => r.entry);
+            if (matchedEntries.length > 0) {
+                contents.parts.push({ text: `DICTIONARY CONTEXT:` });
+                matchedEntries.forEach(res => {
+                    let ctx = `Target ${res.targetIndex + 1} is identified as "${res.entry.name}".`;
+                    if (res.answerIndex) ctx += ` Suggested answer: ${res.answerIndex}.`;
+                    contents.parts.push({ text: ctx });
+                    if (res.entry.answers && res.entry.answers.length > 0) {
+                        contents.parts.push({ text: `Known appearances for ${res.entry.name}:` });
+                        res.entry.answers.slice(0, 3).forEach(ans => {
+                            const src = typeof ans === 'string' ? ans : (ans.data || "");
+                            if (src) contents.parts.push({ inlineData: { mimeType: "image/png", data: src.split(',')[1] } });
+                        });
+                    }
+                });
+            }
+
+            // ── FIXED: better Gemini prompt ──
+            const prompt = `You are solving a monster matching quiz.
+
+TASK: Match each TARGET monster image to its corresponding ANSWER CHOICE.
+
+KEY FACTS ABOUT THIS QUIZ:
+- Targets and answer choices show the SAME monster but rendered differently
+- Answer choices may be: recolored, tinted, darker/lighter, slightly warped, scaled differently, or have a different background
+- Focus on SHAPE and SILHOUETTE first — color is unreliable
+- Each target has exactly ONE correct answer. All 3 answers must be different numbers.
+
+${lockInstructions ? `ALREADY CONFIRMED MATCHES (do not change these):\n${lockInstructions}\n` : ''}${matchedEntries.length > 0 ? 'DICTIONARY HINTS (high-confidence pre-matches, treat as strong signals):\n' + matchedEntries.map(r => `- Target ${r.targetIndex + 1} is likely "${r.entry?.name || 'unknown'}"${r.answerIndex ? `, suggested answer: ${r.answerIndex}` : ''}`).join('\n') + '\n' : ''}
+YOUR REASONING STEPS:
+1. For each target, identify the monster's key shape features (body outline, head shape, limbs)
+2. Find the answer choice with the most similar silhouette — ignore color differences
+3. Confirm no two targets share the same answer
+4. If two targets could match the same answer, pick based on silhouette similarity ranking
+
+RESPONSE FORMAT: Respond with ONLY 3 digits, no spaces, no explanation.
+Example: 214
+Example: 132`;
+
+            contents.parts.push({ text: prompt });
+
+            availableKeys.sort(() => Math.random() - 0.5);
+
+            for (let apiKey of availableKeys) {
+                try {
+                    const { GoogleGenAI } = await import("https://esm.sh/@google/genai");
+                    const ai = new GoogleGenAI({ apiKey });
+                    let response;
+                    try {
+                        response = await ai.models.generateContent({
+                            model: "gemini-3.8-flash",
+                            contents: [contents],
+                            config: { temperature: 0.1 }
+                        });
+                    } catch (mErr) {
+                        console.warn("Retrying with gemini-flash-latest:", mErr);
+                        response = await ai.models.generateContent({
+                            model: "gemini-flash-latest",
+                            contents: [contents],
+                            config: { temperature: 0.1 }
+                        });
+                    }
+                    const text = response.text ? response.text.trim() : "";
+                    if (debugContent) debugContent.innerHTML += `<div style="padding:4px 8px; background:rgba(0,0,0,0.3); border-radius:4px; font-size:9px; margin-top:4px; color:#aaa">Gemini: "${text}"</div>`;
+                    const digits = text.match(/[1-4]/g);
+                    if (digits && digits.length >= 3) return digits.slice(0, 3).join("");
+                } catch (err) {
+                    console.error("Gemini Error:", err);
+                }
+            }
+            return "000";
+        }
+
+        async function rebuildDictionaryHashes(event) {
+            if (dictionary.length === 0) return alert("Dictionary is empty.");
+            const btn = event.target;
+            const originalText = btn.innerText;
+            btn.disabled = true; btn.innerText = "Rebuilding...";
+            let updatedCount = 0;
+            try {
+                for (let i = 0; i < dictionary.length; i++) {
+                    const entry = dictionary[i];
+                    if (entry.originalScreenshot) {
+                        btn.innerText = `Rebuilding (${i+1}/${dictionary.length})...`;
+                        const img = await loadImage(entry.originalScreenshot);
+                        const targetPos = entry.targetPosition || entry.position || { type: 'target', index: 0 };
+                        const targetCrops = await cropFromPositions(img, [circleConfig.targets[targetPos.index]], 'target');
+                        const target = targetCrops[0];
+                        entry.targetImage = target.data;
+                        entry.targetHash = await computePHash(target.data);
+                        if (entry.answers && entry.answers.length > 0) {
+                            for (let ansEntry of entry.answers) {
+                                if (ansEntry.position) {
+                                    const ansCrops = await cropFromPositions(img, [circleConfig.answers[ansEntry.position.index]], 'answer');
+                                    ansEntry.data = ansCrops[0].data;
+                                    ansEntry.hash = await computePHash(ansCrops[0].data);
+                                }
+                            }
+                        }
+                        updatedCount++;
+                    }
+                }
+                if (updatedCount > 0) {
+                    await saveDictionaryToStorage();
+                    alert(`Rebuild complete! Updated ${updatedCount} entries.`);
+                    renderDictionary();
+                } else {
+                    alert("No entries with original screenshots found to update.");
+                }
+            } catch (err) {
+                alert("Rebuild failed: " + err.message);
+            } finally {
+                btn.disabled = false; btn.innerText = originalText;
+            }
+        }
+
+        function renderCrops(targets, answers) {
+            const container = document.getElementById('detected-crops');
+            container.innerHTML = "";
+            targets.forEach((crop, i) => {
+                const div = document.createElement('div');
+                div.className = 'crop-item';
+                div.innerHTML = `<img src="${crop.data}"><div class="crop-number">T${i + 1}</div>`;
+                container.appendChild(div);
+            });
+            if (answers) {
+                answers.forEach((crop, i) => {
+                    const div = document.createElement('div');
+                    div.className = 'crop-item';
+                    div.innerHTML = `<img src="${crop.data}" style="border-color: var(--success)"><div class="crop-number" style="background: var(--success)">A${i + 1}</div>`;
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        let entryTarget = null;
+        let entryAnswers = [];
+        let currentCropType = '';
+        let pickerImgData = null;
+        let dictTargetCropLocal = null;
+        let dictAnswerCropsLocal = [];
+
+        function cancelDictEntry() {
+            dictScreenshot = null; dictTargetCrop = null; dictAnswerCrops = [];
+            document.getElementById('dict-preview-container').classList.add('hidden');
+            document.getElementById('dict-position-picker').classList.add('hidden');
+            document.getElementById('dict-save-btn').disabled = true;
+            const answersList = document.getElementById('dict-answers-list');
+            if (answersList) answersList.innerHTML = "";
+            const targetContainer = document.getElementById('dict-target-preview-container');
+            if (targetContainer) targetContainer.classList.add('hidden');
+            const entryName = document.getElementById('entry-name');
+            if (entryName) entryName.value = "";
+            const fileInput = document.getElementById('dict-screenshot-input');
+            if (fileInput) fileInput.value = "";
+        }
+
+        async function handleDictScreenshot(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                dictScreenshot = e.target.result;
+                const previewImg = document.getElementById('dict-screenshot-preview');
+                previewImg.onload = () => renderDictPreview();
+                previewImg.src = dictScreenshot;
+                document.getElementById('dict-preview-container').classList.remove('hidden');
+                document.getElementById('dict-position-picker').classList.remove('hidden');
+                document.getElementById('dict-save-btn').disabled = true;
+                dictTargetCrop = null; dictAnswerCrops = [];
+                const answersList = document.getElementById('dict-answers-list');
+                if (answersList) answersList.innerHTML = "";
+                const targetContainer = document.getElementById('dict-target-preview-container');
+                if (targetContainer) targetContainer.classList.add('hidden');
+                const entryName = document.getElementById('entry-name');
+                if (entryName) entryName.value = "";
+                saveToStorage(dictScreenshot);
+                event.target.value = "";
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function renderDictPreview() {
+            const container = document.getElementById('dict-circles-layer');
+            const img = document.getElementById('dict-screenshot-preview');
+            if (!container || !img || !dictScreenshot) return;
+            container.innerHTML = "";
+            const rect = img.getBoundingClientRect();
+            if (rect.width === 0 || img.naturalWidth === 0) return;
+            const scaleX = rect.width / img.naturalWidth;
+            const scaleY = rect.height / img.naturalHeight;
+            const allMarkers = [
+                ...circleConfig.targets.map((t, i) => ({...t, type: 'target', id: 'T'+(i+1), index: i})),
+                ...circleConfig.answers.map((a, i) => ({...a, type: 'answer', id: 'A'+(i+1), index: i}))
+            ];
+            allMarkers.forEach(m => {
+                const circle = document.createElement('div');
+                circle.className = `preview-circle ${m.type} clickable`;
+                circle.style.width = (m.radius * 2 * scaleX) + 'px';
+                circle.style.height = (m.radius * 2 * scaleY) + 'px';
+                circle.style.left = (m.x * scaleX) + 'px';
+                circle.style.top = (m.y * scaleY) + 'px';
+                circle.onclick = () => pickEntryPosition(m.id, m.type, m.index);
+                container.appendChild(circle);
+            });
+        }
+
+        async function pickEntryPosition(id, type, index) {
+            const img = await loadImage(dictScreenshot);
+            const crops = await cropFromPositions(img, type === 'target' ? [circleConfig.targets[index]] : [circleConfig.answers[index]], type);
+            const crop = crops[0];
+            if (type === 'target') {
+                dictTargetCrop = { data: crop.data, position: { type: 'target', index }, isExisting: false };
+                document.getElementById('dict-target-preview').src = dictTargetCrop.data;
+                document.getElementById('dict-target-preview-container').classList.remove('hidden');
+            } else {
+                const alreadyAdded = dictAnswerCrops.some(a => a.position.type === 'answer' && a.position.index === index);
+                if (!alreadyAdded) {
+                    dictAnswerCrops.push({ data: crop.data, position: { type: 'answer', index } });
+                    renderDictAnswerPreviews();
+                }
+            }
+            if (dictTargetCrop) document.getElementById('dict-save-btn').disabled = false;
+        }
+
+        function renderDictAnswerPreviews() {
+            const container = document.getElementById('dict-answers-list');
+            container.innerHTML = "";
+            dictAnswerCrops.forEach((ans, idx) => {
+                const div = document.createElement('div');
+                div.className = "relative group";
+                div.innerHTML = `<img src="${ans.data}" class="w-16 h-16 rounded-full border-2 border-orange-500/30 object-cover" />
+                    <button onclick="removeDictAnswer(${idx})" class="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-[10px] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">×</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        function removeDictAnswer(idx) { dictAnswerCrops.splice(idx, 1); renderDictAnswerPreviews(); }
+
+        async function saveEntry() {
+            const name = document.getElementById('entry-name').value.trim();
+            if (!dictTargetCrop) return alert("Target image required");
+            const saveBtn = document.getElementById('dict-save-btn');
+            saveBtn.disabled = true; saveBtn.innerText = "Saving...";
+            try {
+                let targetHash, existingEntry;
+                if (dictTargetCrop.isExisting) {
+                    targetHash = dictTargetCrop.targetHash;
+                    existingEntry = dictionary.find(e => e.id === dictTargetCrop.id || (dictTargetCrop.targetHash && e.targetHash === dictTargetCrop.targetHash));
+                } else {
+                    targetHash = await computePHash(dictTargetCrop.data);
+                    existingEntry = dictionary.find(e => e.targetHash === targetHash);
+                }
+                const answerEntries = [];
+                for (let ans of dictAnswerCrops) {
+                    const hash = await computePHash(ans.data);
+                    answerEntries.push({ data: ans.data, hash, position: ans.position });
+                }
+                const entry = {
+                    name: name || 'Unnamed Monster',
+                    targetImage: dictTargetCrop.data,
+                    targetHash,
+                    targetPosition: dictTargetCrop.position,
+                    answers: answerEntries,
+                    originalScreenshot: dictScreenshot,
+                    timestamp: Date.now()
+                };
+                if (db) {
+                    const toast = showToast("Syncing to Firebase...", "syncing", 0);
+                    try {
+                        if (!existingEntry) {
+                            const docId = Date.now().toString();
+                            await db.collection('dictionary').doc(docId).set(entry);
+                            showToast("Entry saved to cloud", "success");
+                        } else {
+                            const newAnswers = entry.answers.filter(newAns => !existingEntry.answers.some(oldAns => (oldAns.hash || oldAns) === newAns.hash));
+                            if (newAnswers.length > 0) {
+                                const mergedAnswers = [...existingEntry.answers, ...newAnswers];
+                                await db.collection('dictionary').doc(existingEntry.id).update({ answers: mergedAnswers, timestamp: Date.now() });
+                                showToast(`Added ${newAnswers.length} variants to cloud`, "success");
+                            } else {
+                                showToast("Already in dictionary.", "info");
+                            }
+                        }
+                    } catch (e) {
+                        showToast("Firebase sync failed", "error");
+                    } finally { toast.remove(); }
+                } else {
+                    if (!existingEntry) {
+                        entry.id = Date.now().toString();
+                        dictionary.push(entry);
+                        await saveDictionaryToStorage();
+                        showToast("Entry saved locally!", "success");
+                    } else {
+                        const newAnswers = entry.answers.filter(newAns => !existingEntry.answers.some(oldAns => (oldAns.hash || oldAns) === newAns.hash));
+                        if (newAnswers.length > 0) {
+                            existingEntry.answers.push(...newAnswers);
+                            await saveDictionaryToStorage();
+                            showToast(`Added ${newAnswers.length} variants locally`, "success");
+                        }
+                    }
+                }
+                document.getElementById('entry-name').value = "";
+                selectExistingMonster("");
+                document.getElementById('dict-target-preview-container').classList.add('hidden');
+                dictTargetCrop = null; dictAnswerCrops = [];
+                const answersList = document.getElementById('dict-answers-list');
+                if (answersList) answersList.innerHTML = "";
+                renderDictPreview();
+            } catch (e) {
+                showToast("Failed to save entry: " + e.message, "error");
+            } finally {
+                saveBtn.disabled = false; saveBtn.innerText = "Save Entry";
+            }
+        }
+
+        async function deduplicateDictionary() {
+            if (!Array.isArray(dictionary)) { dictionary = []; return; }
+            const seen = new Set();
+            const originalLength = dictionary.length;
+            dictionary = dictionary.filter(e => {
+                if (!e || !e.targetHash) return false;
+                if (seen.has(e.targetHash)) return false;
+                seen.add(e.targetHash); return true;
+            });
+            if (dictionary.length !== originalLength) await saveDictionaryToStorage();
+        }
+
+        function renderDictionary() {
+            const list = document.getElementById('dictionary-list');
+            const debugCount = document.getElementById('debug-dict-count');
+            if (debugCount) debugCount.innerText = `Entries: ${dictionary.length}`;
+            if (!list) return;
+            list.innerHTML = "";
+            if (!Array.isArray(dictionary)) dictionary = [];
+            dictionary.forEach((entry, i) => {
+                const div = document.createElement('div');
+                div.className = 'card dict-item';
+                const answerImages = entry.answers.map(a => {
+                    const src = typeof a === 'string' ? a : a.data;
+                    return `<img src="${src}" class="dict-answer">`;
+                }).join("");
+                div.innerHTML = `<img src="${entry.targetImage || entry.target}" class="dict-target">
+                    <div style="flex:1">
+                        <input type="text" class="monster-name-edit" value="${entry.name || ''}" onblur="updateMonsterName(${i}, this.value)" placeholder="Unnamed Monster">
+                        <div class="dict-answers" onclick="openVariantsPanel(${i})" title="Click to manage variants">${answerImages}</div>
+                    </div>
+                    <button class="btn btn-danger" style="width:auto; padding:8px" onclick="deleteEntry(${i})">Delete</button>`;
+                list.appendChild(div);
+            });
+            if (dictionary.length === 0) {
+                list.innerHTML = `<div style="text-align:center; color:#555; padding:32px; font-size:12px">Dictionary is empty. Upload a screenshot to start.</div>`;
+            }
+            updateExistingMonsterSelect();
+        }
+
+        function updateExistingMonsterSelect() {
+            const picker = document.getElementById('existing-monster-picker');
+            if (!picker) return;
+            picker.innerHTML = "";
+            const newBtn = document.createElement('div');
+            newBtn.className = "monster-picker-item selected";
+            newBtn.id = "monster-item-new";
+            newBtn.innerHTML = `<div class="w-10 h-10 rounded-full border border-dashed border-white/30 flex items-center justify-center text-white/50 text-xl">+</div><span>New</span>`;
+            newBtn.onclick = () => selectExistingMonster("");
+            picker.appendChild(newBtn);
+            const sortedDict = [...dictionary].sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+            const uniqueEntries = [];
+            const seenHashes = new Set();
+            sortedDict.forEach(e => {
+                const hash = e.targetHash || e.id;
+                if (hash && !seenHashes.has(hash)) { seenHashes.add(hash); uniqueEntries.push(e); }
+            });
+            uniqueEntries.forEach(entry => {
+                const item = document.createElement('div');
+                item.className = "monster-picker-item";
+                item.id = `monster-item-${entry.id}`;
+                item.innerHTML = `<img src="${entry.targetImage || entry.target}" alt="${entry.name}" title="${entry.name}">`;
+                item.onclick = () => selectExistingMonster(entry.id);
+                picker.appendChild(item);
+            });
+        }
+
+        function selectExistingMonster(id) {
+            const nameInput = document.getElementById('entry-name');
+            const targetPreview = document.getElementById('dict-target-preview');
+            const targetContainer = document.getElementById('dict-target-preview-container');
+            const saveBtn = document.getElementById('dict-save-btn');
+            document.querySelectorAll('.monster-picker-item').forEach(el => el.classList.remove('selected'));
+            if (!id) {
+                document.getElementById('monster-item-new')?.classList.add('selected');
+                if (nameInput) nameInput.value = "";
+                if (dictTargetCrop && dictTargetCrop.isExisting) {
+                    dictTargetCrop = null;
+                    if (targetContainer) targetContainer.classList.add('hidden');
+                    if (saveBtn) saveBtn.disabled = true;
+                }
+                return;
+            }
+            document.getElementById(`monster-item-${id}`)?.classList.add('selected');
+            const monster = dictionary.find(e => e.id === id);
+            if (monster) {
+                if (nameInput) nameInput.value = monster.name;
+                dictTargetCrop = { data: monster.targetImage || monster.target, position: monster.targetPosition || null, isExisting: true, id: monster.id, targetHash: monster.targetHash };
+                if (targetPreview) targetPreview.src = dictTargetCrop.data;
+                if (targetContainer) targetContainer.classList.remove('hidden');
+                if (saveBtn) saveBtn.disabled = false;
+            }
+        }
+
+        async function updateMonsterName(index, newName) {
+            const entry = dictionary[index];
+            if (!entry || entry.name === newName) return;
+            const oldName = entry.name;
+            entry.name = newName;
+            if (db && entry.id) {
+                const toast = showToast("Updating name...", "syncing", 0);
+                try {
+                    await db.collection('dictionary').doc(entry.id).update({ name: newName, timestamp: Date.now() });
+                    showToast("Name updated", "success");
+                } catch (e) {
+                    entry.name = oldName;
+                    showToast("Update failed", "error");
+                    renderDictionary();
+                } finally { toast.remove(); }
+            } else {
+                await saveDictionaryToStorage();
+                showToast("Name updated locally", "success");
+            }
+        }
+
+        let currentVariantsMonsterIndex = -1;
+
+        function openVariantsPanel(index) {
+            currentVariantsMonsterIndex = index;
+            const entry = dictionary[index];
+            document.getElementById('variants-title').innerText = `${entry.name || 'Unnamed'} Variants`;
+            document.getElementById('variants-panel').style.display = 'flex';
+            renderVariants();
+        }
+
+        function closeVariantsPanel() {
+            document.getElementById('variants-panel').style.display = 'none';
+            currentVariantsMonsterIndex = -1;
+        }
+
+        function renderVariants() {
+            const list = document.getElementById('variants-list');
+            if (!list || currentVariantsMonsterIndex === -1) return;
+            const entry = dictionary[currentVariantsMonsterIndex];
+            list.innerHTML = "";
+            entry.answers.forEach((ans, i) => {
+                const src = typeof ans === 'string' ? ans : ans.data;
+                const div = document.createElement('div');
+                div.className = 'variant-card';
+                div.innerHTML = `<div style="display:flex; align-items:center; gap:16px">
+                    <div style="font-size:12px; color:var(--text-secondary); width:24px">${i + 1}</div>
+                    <img src="${src}" class="variant-img">
+                    <div style="font-size:14px; color:var(--text-secondary)">Variant #${i + 1}</div>
+                </div>
+                <button class="btn btn-danger" style="width:auto; padding:6px 12px; font-size:12px" onclick="deleteVariant(${currentVariantsMonsterIndex}, ${i})">Delete</button>`;
+                list.appendChild(div);
+            });
+            if (entry.answers.length === 0) {
+                list.innerHTML = `<div style="padding:40px; text-align:center; color:var(--text-secondary)">No variants found.</div>`;
+            }
+        }
+
+        async function deleteVariant(monsterIndex, variantIndex) {
+            if (!confirm("Delete this variant?")) return;
+            const entry = dictionary[monsterIndex];
+            const variantToDelete = entry.answers[variantIndex];
+            entry.answers.splice(variantIndex, 1);
+            renderVariants(); renderDictionary();
+            if (db && entry.id) {
+                const toast = showToast("Deleting variant...", "syncing", 0);
+                try {
+                    await db.collection('dictionary').doc(entry.id).update({ answers: entry.answers, timestamp: Date.now() });
+                    showToast("Variant deleted", "success");
+                } catch (e) {
+                    entry.answers.splice(variantIndex, 0, variantToDelete);
+                    renderVariants(); renderDictionary();
+                    showToast("Delete failed", "error");
+                } finally { toast.remove(); }
+            } else {
+                await saveDictionaryToStorage();
+                showToast("Variant deleted locally", "success");
+            }
+        }
+
+        async function deleteEntry(index) {
+            if (!confirm("Delete this entry?")) return;
+            const entry = dictionary[index];
+            if (db && entry.id) {
+                const toast = showToast("Deleting from Firebase...", "syncing", 0);
+                try {
+                    await db.collection('dictionary').doc(entry.id).delete();
+                    showToast("Deleted from cloud", "success");
+                } catch (e) {
+                    showToast("Delete failed", "error");
+                } finally { toast.remove(); }
+            } else {
+                dictionary.splice(index, 1);
+                await saveDictionaryToStorage();
+            }
+        }
+
+        async function clearDictionary() {
+            if (!confirm("Clear ALL dictionary entries? This cannot be undone.")) return;
+            const clearBtn = event.target;
+            const originalText = clearBtn.innerText;
+            clearBtn.disabled = true; clearBtn.innerText = "Clearing...";
+            if (db) {
+                const toast = showToast("Clearing cloud dictionary...", "syncing", 0);
+                try {
+                    const snapshot = await db.collection('dictionary').get();
+                    const batch = db.batch();
+                    snapshot.forEach(doc => batch.delete(doc.ref));
+                    await batch.commit();
+                    showToast("Cloud dictionary cleared", "success");
+                } catch (e) {
+                    showToast("Firebase clear failed", "error");
+                } finally { toast.remove(); }
+            } else {
+                dictionary = [];
+                await saveDictionaryToStorage();
+            }
+            clearBtn.disabled = false; clearBtn.innerText = originalText;
+        }
+
+        async function saveDictionaryToStorage() {
+            if (!Array.isArray(dictionary)) dictionary = [];
+            try {
+                localStorage.setItem('dictionary_cache', JSON.stringify({ version: 1, exportedAt: new Date().toISOString(), entries: dictionary }));
+            } catch (e) { console.error("Local storage save failed:", e); }
+            renderDictionary();
+        }
+
+        async function saveScreenshot(base64DataUrl) {
+            screenshots.unshift({ data: base64DataUrl, timestamp: Date.now() });
+            screenshots = screenshots.slice(0, 20);
+            try { localStorage.setItem('screenshots_local', JSON.stringify(screenshots)); } catch (e) {}
+            renderStorage();
+        }
+
+        async function saveToStorage(data) { await saveScreenshot(data); }
+
+        async function clearScreenshots() {
+            if (!confirm("Clear all local screenshots?")) return;
+            screenshots = []; localStorage.removeItem('screenshots_local');
+            renderStorage(); showToast("Local screenshots cleared", "success");
+        }
+
+        function renderStorage() {
+            const list = document.getElementById('storage-list');
+            if (!list) return;
+            list.innerHTML = "";
+            screenshots.forEach((s, i) => {
+                const div = document.createElement('div');
+                div.className = 'card storage-item';
+                div.innerHTML = `<img src="${s.data}" class="storage-preview">
+                    <div style="font-size:12px; color:var(--text-secondary)">${new Date(s.timestamp).toLocaleString()}</div>
+                    <div style="display:flex; gap:8px">
+                        <button class="btn btn-secondary" style="font-size:12px" onclick="openInSolver(${i})">Solve</button>
+                        <button class="btn btn-secondary" style="font-size:12px" onclick="startEntryFromStorage(${i})">Add Entry</button>
+                        <button class="btn btn-danger" style="font-size:12px; width:auto" onclick="deleteLocalScreenshot(${i})">Del</button>
+                    </div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function deleteLocalScreenshot(i) {
+            screenshots.splice(i, 1);
+            try { localStorage.setItem('screenshots_local', JSON.stringify(screenshots)); } catch (e) {}
+            renderStorage();
+        }
+
+        function openInSolver(i) {
+            currentScreenshot = screenshots[i].data;
+            document.getElementById('screenshot-preview').src = currentScreenshot;
+            document.getElementById('screenshot-preview-container').classList.remove('hidden');
+            document.getElementById('solve-btn').disabled = false;
+            switchTab('solver');
+        }
+
+        function startEntryFromStorage(i) {
+            dictScreenshot = screenshots[i].data;
+            const previewImg = document.getElementById('dict-screenshot-preview');
+            previewImg.onload = () => renderDictPreview();
+            previewImg.src = dictScreenshot;
+            document.getElementById('dict-preview-container').classList.remove('hidden');
+            document.getElementById('dict-position-picker').classList.remove('hidden');
+            document.getElementById('dict-save-btn').disabled = true;
+            dictTargetCrop = null; dictAnswerCrops = [];
+            switchTab('dictionary');
+        }
+
+        function exportDictionary() {
+            if (dictionary.length === 0) return alert("Dictionary is empty.");
+            try {
+                const exportEntries = [];
+                dictionary.forEach(entry => {
+                    exportEntries.push({ id: entry.id, targetImage: entry.targetImage || entry.target, answerImage: null, answerText: null, name: entry.name, position: entry.targetPosition || entry.position || null });
+                    if (entry.answers && entry.answers.length > 0) {
+                        entry.answers.forEach((ans, idx) => {
+                            exportEntries.push({ id: entry.id + "_ans_" + idx, targetImage: entry.targetImage || entry.target, answerImage: typeof ans === 'string' ? ans : ans.data, answerText: null, name: entry.name, position: ans.position || null });
+                        });
+                    }
+                });
+                const data = { version: 1, exportedAt: new Date().toISOString(), entries: exportEntries };
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none'; a.href = url;
+                a.download = `monster_dict_${new Date().toISOString().slice(0,10)}.json`;
+                document.body.appendChild(a); a.click();
+                setTimeout(() => { document.body.removeChild(a); window.URL.revokeObjectURL(url); }, 100);
+            } catch (e) { alert("Export failed: " + e.message); }
+        }
+
+        function importDictionary() {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'application/json'; input.style.display = 'none';
+            document.body.appendChild(input);
+            input.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) { document.body.removeChild(input); return; }
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    try {
+                        const data = JSON.parse(event.target.result);
+                        if (!data || data.version !== 1 || !data.exportedAt || !Array.isArray(data.entries)) throw new Error("Invalid format: Expected version 1 dictionary object.");
+                        const previewSection = document.getElementById('import-preview-section');
+                        const jsonDisplay = document.getElementById('import-json-display');
+                        const confirmBtn = document.getElementById('confirm-import-btn');
+                        previewSection.classList.remove('hidden');
+                        jsonDisplay.innerText = JSON.stringify(data, null, 2);
+                        previewSection.scrollIntoView({ behavior: 'smooth' });
+                        confirmBtn.onclick = async () => {
+                            confirmBtn.disabled = true; confirmBtn.innerText = "Importing...";
+                            try {
+                                let importedCount = 0;
+                                for (let imp of data.entries) {
+                                    const impTargetImage = imp.targetImage;
+                                    const impAnswerImage = imp.answerImage;
+                                    if (!impTargetImage) continue;
+                                    const impHash = await computePHash(impTargetImage);
+                                    const existingIndex = dictionary.findIndex(e => e.targetHash === impHash);
+                                    let entryToSync = null;
+                                    if (existingIndex === -1) {
+                                        const newEntry = { id: imp.id || Date.now().toString() + "_" + importedCount, name: imp.name || 'Unnamed', targetImage: impTargetImage, targetHash: impHash, targetPosition: imp.position, answers: impAnswerImage ? [{ data: impAnswerImage, hash: await computePHash(impAnswerImage) }] : [], timestamp: Date.now() };
+                                        dictionary.push(newEntry); entryToSync = newEntry; importedCount++;
+                                    } else {
+                                        if (impAnswerImage) {
+                                            const existingEntry = dictionary[existingIndex];
+                                            const ansHash = await computePHash(impAnswerImage);
+                                            if (!existingEntry.answers.some(a => (a.hash || a) === ansHash)) {
+                                                existingEntry.answers.push({ data: impAnswerImage, hash: ansHash });
+                                                entryToSync = existingEntry; importedCount++;
+                                            }
+                                        }
+                                    }
+                                    if (db && entryToSync) {
+                                        try {
+                                            await db.collection('dictionary').doc(entryToSync.id).set({ name: entryToSync.name, targetImage: entryToSync.targetImage, targetHash: entryToSync.targetHash, targetPosition: entryToSync.targetPosition || null, answers: entryToSync.answers, timestamp: Date.now() }, { merge: true });
+                                        } catch (fe) { console.error("Firebase sync error during import:", fe); }
+                                    }
+                                }
+                                await saveDictionaryToStorage();
+                                showToast(`Import successful! Added/Updated ${importedCount} items.`, "success");
+                                previewSection.classList.add('hidden');
+                                renderDictionary();
+                            } catch (e) {
+                                showToast("Import failed: " + e.message, "error");
+                            } finally {
+                                confirmBtn.disabled = false; confirmBtn.innerText = "Confirm Import";
+                                if (input.parentNode) document.body.removeChild(input);
+                            }
+                        };
+                    } catch (e) {
+                        alert("Failed to parse JSON: " + e.message);
+                    } finally { if (input.parentNode) document.body.removeChild(input); }
+                };
+                reader.readAsText(file);
+            };
+            input.click();
+        }
+
+        function closeImportPreview() {
+            document.getElementById('import-preview-section').classList.add('hidden');
+            document.getElementById('import-json-display').innerText = "";
+        }
+    </script>
+</body>
+</html>
